@@ -1,0 +1,26 @@
+{
+  "canisters": {
+    "ic_side_services_backend": {
+      "candid": "src/ic_side_services_backend/ic_side_services_backend.did",
+      "package": "ic_side_services_backend",
+      "type": "rust"
+    },
+    "ic_side_services_frontend": {
+      "dependencies": [
+        "ic_side_services_backend"
+      ],
+      "source": [
+        "src/ic_side_services_frontend/assets"
+      ],
+      "type": "assets"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}
