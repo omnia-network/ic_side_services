@@ -3,7 +3,10 @@
     "ic_side_services_backend": {
       "candid": "src/ic_side_services_backend/ic_side_services_backend.did",
       "package": "ic_side_services_backend",
-      "type": "rust"
+      "type": "rust",
+      "declarations": {
+        "output": "./ic-http-request-executor/src/canister/declarations/ic_side_services_backend"
+      }
     }
   },
   "defaults": {
@@ -12,6 +15,7 @@
       "packtool": ""
     }
   },
-  "output_env_file": ".env",
-  "version": 1
+  "output_env_file": "ic-http-request-executor/.env",
+  "version": 1,
+  "dfx": "0.15.1"
 }
