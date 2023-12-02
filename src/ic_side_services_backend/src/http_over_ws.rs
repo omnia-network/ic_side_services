@@ -10,6 +10,8 @@ use ic_cdk::{
 };
 use ic_websocket_cdk::*;
 
+use crate::{logger::log, ws::send_ws_message};
+
 type HttpRequestId = u32;
 
 #[derive(CandidType, Clone, Deserialize)]
@@ -37,7 +39,7 @@ pub enum HttpOverWsMessage {
 }
 
 impl HttpOverWsMessage {
-    fn to_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(&self) -> Vec<u8> {
         encode_one(self).unwrap()
     }
 
@@ -151,11 +153,14 @@ pub fn on_message(args: OnMessageCallbackArgs) {
     let incoming_msg = HttpOverWsMessage::from_bytes(&args.message);
     let client_principal = args.client_principal;
 
-    let response_msg: Option<HttpOverWsMessage> = match incoming_msg {
-        HttpOverWsMessage::HttpRequest(_, _) | HttpOverWsMessage::Error(_) => {
-            Some(HttpOverWsMessage::Error(String::from(
-                "Clients are not allowed to send HTTP requests or errors",
-            )))
+    match incoming_msg {
+        HttpOverWsMessage::HttpRequest(_, _) => {
+            send_ws_message(
+                client_principal,
+                HttpOverWsMessage::Error(String::from(
+                    "Clients are not allowed to send HTTP requests",
+                )),
+            );
         }
         HttpOverWsMessage::HttpResponse(request_id, response) => {
             if CONNECTED_CLIENTS.with(|clients| {
@@ -178,15 +183,17 @@ pub fn on_message(args: OnMessageCallbackArgs) {
                         .borrow_mut()
                         .complete_request_for_client(client_principal, request_id);
                 });
-            }
 
-            None
+                log(&format!(
+                    "http_over_ws: Completed HTTP request {}",
+                    request_id
+                ));
+            }
+        }
+        HttpOverWsMessage::Error(err) => {
+            log(&format!("http_over_ws: incoming error: {}", err));
         }
     };
-
-    if let Some(response_msg) = response_msg {
-        let _ = ic_websocket_cdk::ws_send(client_principal, response_msg.to_bytes());
-    }
 }
 
 pub fn on_close(args: OnCloseCallbackArgs) {
@@ -226,9 +233,9 @@ fn execute_http_request(
                 .insert(request_id, HttpRequestState::new(http_request.clone()));
         });
 
-        let _ = ic_websocket_cdk::ws_send(
+        send_ws_message(
             assigned_client_principal,
-            HttpOverWsMessage::HttpRequest(request_id, http_request).to_bytes(),
+            HttpOverWsMessage::HttpRequest(request_id, http_request),
         );
     } else {
         trap("No available clients");
@@ -237,9 +244,28 @@ fn execute_http_request(
     request_id
 }
 
+#[derive(CandidType, Deserialize)]
+struct PrettyHttpResponse {
+    status: candid::Nat,
+    headers: Vec<HttpHeader>,
+    body: String,
+}
+
 #[query]
-fn get_http_request_state(request_id: HttpRequestId) -> Option<HttpRequestState> {
-    HTTP_REQUESTS.with(|http_requests| http_requests.borrow().get(&request_id).cloned())
+fn get_http_response(request_id: HttpRequestId) -> Option<PrettyHttpResponse> {
+    HTTP_REQUESTS.with(|http_requests| {
+        http_requests
+            .borrow()
+            .get(&request_id)
+            .map(|r| {
+                r.response.as_ref().map(|res| PrettyHttpResponse {
+                    status: res.status.clone(),
+                    headers: res.headers.clone(),
+                    body: String::from_utf8_lossy(&res.body).to_string(),
+                })
+            })
+            .flatten()
+    })
 }
 
 #[query]

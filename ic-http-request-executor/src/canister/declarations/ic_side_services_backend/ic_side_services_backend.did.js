@@ -1,4 +1,9 @@
 export const idlFactory = ({ IDL }) => {
+  const FluxNetwork = IDL.Variant({
+    'mainnet' : IDL.Null,
+    'local' : IDL.Null,
+    'testnet' : IDL.Null,
+  });
   const HttpMethod = IDL.Variant({
     'GET' : IDL.Null,
     'PUT' : IDL.Null,
@@ -12,20 +17,10 @@ export const idlFactory = ({ IDL }) => {
     'busy_clients' : IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Vec(HttpRequestId))),
     'idle_clients' : IDL.Vec(IDL.Principal),
   });
-  const HttpRequest = IDL.Record({
-    'url' : IDL.Text,
-    'method' : HttpMethod,
-    'body' : IDL.Opt(IDL.Vec(IDL.Nat8)),
-    'headers' : IDL.Vec(HttpHeader),
-  });
-  const HttpResponse = IDL.Record({
+  const PrettyHttpResponse = IDL.Record({
     'status' : IDL.Nat,
-    'body' : IDL.Vec(IDL.Nat8),
+    'body' : IDL.Text,
     'headers' : IDL.Vec(HttpHeader),
-  });
-  const HttpRequestState = IDL.Record({
-    'request' : HttpRequest,
-    'response' : IDL.Opt(HttpResponse),
   });
   const ClientPrincipal = IDL.Principal;
   const ClientKey = IDL.Record({
@@ -61,6 +56,17 @@ export const idlFactory = ({ IDL }) => {
     'is_service_message' : IDL.Bool,
   });
   const CanisterWsMessageArguments = IDL.Record({ 'msg' : WebsocketMessage });
+  const HttpRequest = IDL.Record({
+    'url' : IDL.Text,
+    'method' : HttpMethod,
+    'body' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'headers' : IDL.Vec(HttpHeader),
+  });
+  const HttpResponse = IDL.Record({
+    'status' : IDL.Nat,
+    'body' : IDL.Vec(IDL.Nat8),
+    'headers' : IDL.Vec(HttpHeader),
+  });
   const HttpOverWsMessage = IDL.Variant({
     'Error' : IDL.Text,
     'HttpRequest' : IDL.Tuple(HttpRequestId, HttpRequest),
@@ -81,16 +87,24 @@ export const idlFactory = ({ IDL }) => {
   });
   return IDL.Service({
     'execute_http_request' : IDL.Func(
-        [IDL.Text, HttpMethod, IDL.Vec(HttpHeader), IDL.Opt(IDL.Vec(IDL.Nat8))],
+        [IDL.Text, HttpMethod, IDL.Vec(HttpHeader), IDL.Opt(IDL.Text)],
         [HttpRequestId],
         [],
       ),
+    'get_addresses' : IDL.Func([], [IDL.Text, IDL.Text], ['query']),
     'get_connected_clients' : IDL.Func([], [ConnectedClients], ['query']),
-    'get_http_request_state' : IDL.Func(
+    'get_http_response' : IDL.Func(
         [HttpRequestId],
-        [IDL.Opt(HttpRequestState)],
+        [IDL.Opt(PrettyHttpResponse)],
         ['query'],
       ),
+    'get_logs' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text))],
+        ['query'],
+      ),
+    'set_canister_public_key' : IDL.Func([IDL.Opt(IDL.Text)], [], []),
+    'sign_with_ecdsa' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [IDL.Text], []),
     'ws_close' : IDL.Func(
         [CanisterWsCloseArguments],
         [CanisterWsCloseResult],
@@ -109,4 +123,11 @@ export const idlFactory = ({ IDL }) => {
     'ws_open' : IDL.Func([CanisterWsOpenArguments], [CanisterWsOpenResult], []),
   });
 };
-export const init = ({ IDL }) => { return []; };
+export const init = ({ IDL }) => {
+  const FluxNetwork = IDL.Variant({
+    'mainnet' : IDL.Null,
+    'local' : IDL.Null,
+    'testnet' : IDL.Null,
+  });
+  return [FluxNetwork];
+};

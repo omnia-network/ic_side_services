@@ -1,6 +1,7 @@
 import type { Principal } from '@dfinity/principal';
 import type { ActorMethod } from '@dfinity/agent';
 
+export type BitcoinAddress = string;
 export interface CanisterOutputCertifiedMessages {
   'messages' : Array<CanisterOutputMessage>,
   'cert' : Uint8Array | number[],
@@ -38,6 +39,9 @@ export interface ConnectedClients {
   'busy_clients' : Array<[Principal, Uint32Array | number[]]>,
   'idle_clients' : Array<Principal>,
 }
+export type FluxNetwork = { 'mainnet' : null } |
+  { 'local' : null } |
+  { 'testnet' : null };
 export type GatewayPrincipal = Principal;
 export interface HttpHeader { 'value' : string, 'name' : string }
 export type HttpMethod = { 'GET' : null } |
@@ -64,6 +68,11 @@ export interface HttpResponse {
   'body' : Uint8Array | number[],
   'headers' : Array<HttpHeader>,
 }
+export interface PrettyHttpResponse {
+  'status' : bigint,
+  'body' : string,
+  'headers' : Array<HttpHeader>,
+}
 export interface WebsocketMessage {
   'sequence_num' : bigint,
   'content' : Uint8Array | number[],
@@ -73,14 +82,15 @@ export interface WebsocketMessage {
 }
 export interface _SERVICE {
   'execute_http_request' : ActorMethod<
-    [string, HttpMethod, Array<HttpHeader>, [] | [Uint8Array | number[]]],
+    [string, HttpMethod, Array<HttpHeader>, [] | [string]],
     HttpRequestId
   >,
+  'get_addresses' : ActorMethod<[], [string, string]>,
   'get_connected_clients' : ActorMethod<[], ConnectedClients>,
-  'get_http_request_state' : ActorMethod<
-    [HttpRequestId],
-    [] | [HttpRequestState]
-  >,
+  'get_http_response' : ActorMethod<[HttpRequestId], [] | [PrettyHttpResponse]>,
+  'get_logs' : ActorMethod<[], Array<[string, string]>>,
+  'set_canister_public_key' : ActorMethod<[[] | [string]], undefined>,
+  'sign_with_ecdsa' : ActorMethod<[string, [] | [string]], string>,
   'ws_close' : ActorMethod<[CanisterWsCloseArguments], CanisterWsCloseResult>,
   'ws_get_messages' : ActorMethod<
     [CanisterWsGetMessagesArguments],

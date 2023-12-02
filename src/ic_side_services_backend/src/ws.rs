@@ -1,7 +1,10 @@
 use ic_cdk::{query, update};
 use ic_websocket_cdk::*;
 
-use crate::http_over_ws::{on_close, on_message, on_open, HttpOverWsMessage};
+use crate::{
+    http_over_ws::{on_close, on_message, on_open, HttpOverWsMessage},
+    logger::log,
+};
 
 pub const GATEWAY_PRINCIPAL: &str =
     "3656s-3kqlj-dkm5d-oputg-ymybu-4gnuq-7aojd-w2fzw-5lfp2-4zhx3-4ae";
@@ -17,6 +20,12 @@ pub fn init_ws() {
     );
 
     ic_websocket_cdk::init(params);
+}
+
+pub fn send_ws_message(client_principal: ClientPrincipal, message: HttpOverWsMessage) {
+    if let Err(send_err) = ic_websocket_cdk::ws_send(client_principal, message.to_bytes()) {
+        log(&format!("ws: Failed to send message: {}", send_err))
+    }
 }
 
 #[update]

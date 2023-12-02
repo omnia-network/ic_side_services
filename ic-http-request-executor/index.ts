@@ -20,40 +20,62 @@ ws.onopen = () => {
 };
 
 ws.onmessage = async (ev) => {
-  const incomingMessage = ev.data;
-  console.log("Message", incomingMessage);
+  try {
+    const incomingMessage = ev.data;
+    console.log("Message", incomingMessage);
 
-  if ("HttpRequest" in incomingMessage) {
-    const requestId = incomingMessage.HttpRequest[0];
-    const request = incomingMessage.HttpRequest[1];
+    if ("HttpRequest" in incomingMessage) {
+      const requestId = incomingMessage.HttpRequest[0];
+      const request = incomingMessage.HttpRequest[1];
 
-    console.log("Sending HTTP request to", request.url);
-    // @ts-ignore
-    const response = await fetch(request.url, {
-      method: request.method,
-      headers: request.headers,
-      body: request.body.length > 0 ? new Uint8Array(request.body[0]!) : undefined,
-    });
+      const url = new URL(request.url);
+      const method = Object.keys(request.method)[0]; // workaround to get the candid enum
+      const headers = new Headers(
+        request.headers.map(({ name, value }) => [name, value] as [string, string])
+      );
+      const body = (request.body.length > 0 && method !== "GET")
+        ? new Uint8Array(request.body[0]!)
+        : null;
 
-    console.log("Got response from", request.url, "Status:", response.status);
+      console.log(
+        "Sending HTTP request.",
+        "\nurl:", url,
+        "\nmethod:", method,
+        "\nheaders:", headers,
+        "\nbody bytes:", body?.length
+      );
 
+      const response = await fetch(url, {
+        method,
+        headers,
+        body,
+      });
+
+      console.log("Got response from", request.url, "Status:", response.status);
+
+      ws.send({
+        HttpResponse: [
+          requestId,
+          {
+            status: BigInt(response.status),
+            headers: Array.from(response.headers.entries()).map(([key, value]) => ({
+              name: key,
+              value,
+            })),
+            body: new Uint8Array(await response.arrayBuffer()),
+          },
+        ],
+      });
+
+      console.log("Sent response");
+    } else if ("Error" in incomingMessage) {
+      console.error("http-over-ws: incoming error:", incomingMessage.Error);
+    }
+  } catch (e) {
+    console.error("http-over-ws: error", e);
     ws.send({
-      HttpResponse: [
-        requestId,
-        {
-          status: BigInt(response.status),
-          headers: Array.from(response.headers.entries()).map(([key, value]) => ({
-            name: key,
-            value,
-          })),
-          body: new Uint8Array(await response.arrayBuffer()),
-        },
-      ],
+      Error: String(e),
     });
-
-    console.log("Sent response");
-  } else if ("Error" in incomingMessage) {
-    console.error("http-over-ws", incomingMessage.Error);
   }
 };
 

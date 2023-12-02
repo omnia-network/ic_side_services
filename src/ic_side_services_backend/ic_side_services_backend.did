@@ -105,19 +105,39 @@ type HttpRequestState = record {
     response : opt HttpResponse;
 };
 
+type PrettyHttpResponse = record {
+    status : nat;
+    headers : vec HttpHeader;
+    body : text;
+};
+
 type ConnectedClients = record {
     idle_clients : vec principal;
     busy_clients : vec record { principal; vec HttpRequestId };
 };
+
+type FluxNetwork = variant {
+    local;
+    testnet;
+    mainnet;
+};
+
+type BitcoinAddress = text;
 /* End Application types */
 
-service : {
+service : (FluxNetwork) -> {
     "ws_open" : (CanisterWsOpenArguments) -> (CanisterWsOpenResult);
     "ws_close" : (CanisterWsCloseArguments) -> (CanisterWsCloseResult);
     "ws_message" : (CanisterWsMessageArguments, opt HttpOverWsMessage) -> (CanisterWsMessageResult);
     "ws_get_messages" : (CanisterWsGetMessagesArguments) -> (CanisterWsGetMessagesResult) query;
 
-    "execute_http_request" : (text, HttpMethod, vec HttpHeader, opt blob) -> (HttpRequestId);
-    "get_http_request_state" : (HttpRequestId) -> (opt HttpRequestState) query;
+    "execute_http_request" : (text, HttpMethod, vec HttpHeader, opt text) -> (HttpRequestId);
+    "get_http_response" : (HttpRequestId) -> (opt PrettyHttpResponse) query;
     "get_connected_clients" : () -> (ConnectedClients) query;
+
+    "set_canister_public_key" : (opt text) -> ();
+    "get_addresses" : () -> (text, text) query;
+    "sign_with_ecdsa" : (text, opt text) -> (text);
+
+    "get_logs" : () -> (vec record { text; text }) query;
 };
