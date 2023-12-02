@@ -1,6 +1,7 @@
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 
 use base64::{engine::general_purpose, Engine};
+use ecdsa_api::set_ecdsa_key_name;
 use ic_cdk::{init, post_upgrade, pre_upgrade, query, update};
 
 use flux::FluxNetwork;
@@ -14,14 +15,8 @@ mod logger;
 mod ws;
 
 thread_local! {
-    // The bitcoin network to connect to.
-    //
-    // When developing locally this should be `Local`.
-    // When deploying to the IC this should be `Testnet` or `Mainnet`.
+    /// The Flux network to connect to.
     /* stable */ static NETWORK: Cell<FluxNetwork> = Cell::new(FluxNetwork::Local);
-
-    // The ECDSA key name.
-    /* flexible */ static KEY_NAME: RefCell<String> = RefCell::new(String::from(""));
 }
 
 #[init]
@@ -30,20 +25,10 @@ pub fn init(network: FluxNetwork) {
 
     NETWORK.with(|n| n.set(network));
 
-    let key_name = match network {
-        // For local development, we use a special test key with dfx.
-        FluxNetwork::Local => "dfx_test_key",
-        // On the IC, we can use test or production keys.
-        FluxNetwork::Testnet => "test_key_1",
-        FluxNetwork::Mainnet => "key_1",
-    };
-
-    KEY_NAME.with(|s| {
-        s.replace(String::from(key_name));
-    });
+    let key_name = set_ecdsa_key_name(network);
 
     log(&format!(
-        "get_ecdsa_config: key_name: {}, network: {:?}",
+        "ecdsa_config: key_name: {}, network: {:?}",
         key_name, network
     ));
 }
@@ -54,8 +39,7 @@ pub async fn set_canister_public_key(derivation_path: Option<String>) {
     let derivation_path = derivation_path
         .map(|dp| vec![dp.into_bytes()])
         .unwrap_or(vec![]);
-    let key_name = KEY_NAME.with(|kn| kn.borrow().clone());
-    flux::set_canister_ecdsa_public_key(key_name, derivation_path).await
+    ecdsa_api::set_canister_ecdsa_public_key(derivation_path).await
 }
 
 #[query]
@@ -73,9 +57,8 @@ pub async fn sign_with_ecdsa(message: String, derivation_path: Option<String>) -
     let derivation_path = derivation_path
         .map(|dp| vec![dp.into_bytes()])
         .unwrap_or(vec![]);
-    let key_name = KEY_NAME.with(|kn| kn.borrow().clone());
     let message_hash = flux::get_message_magic_hash(message);
-    let signature = ecdsa_api::sign_with_ecdsa(key_name, derivation_path, message_hash).await;
+    let signature = ecdsa_api::sign_with_ecdsa(derivation_path, message_hash).await;
     let signature_bytes = flux::encode_signature(&signature);
     general_purpose::STANDARD.encode(signature_bytes)
 }

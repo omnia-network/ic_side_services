@@ -1,21 +1,16 @@
-use std::cell::RefCell;
-
 use candid::CandidType;
-use ic_cdk::trap;
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
 
-use crate::{ecdsa_api, logger::log};
+use crate::ecdsa_api::get_canister_ecdsa_public_key;
 
 // Bitcoin message signature:
 // - Rust: https://docs.rs/bitcoin/latest/src/bitcoin/sign_message.rs.html#197-204
 // - JS: https://github.com/bitcoinjs/bitcoinjs-message
 
-thread_local! {
-    /// The ECDSA canister public key, obtained from [ecdsa_api::ecdsa_public_key].
-    /* flexible */ static CANISTER_ECDSA_PUBLIC_KEY: RefCell<Option<Vec<u8>>> = RefCell::new(None);
-}
-
+/// When developing locally this should be [FluxNetwork::Local].
+///
+/// When deploying to the IC this should be [FluxNetwork::Mainnet] or [FluxNetwork::Testnet].
 #[derive(CandidType, Serialize, Deserialize, Debug, Copy, Clone)]
 pub enum FluxNetwork {
     #[serde(rename = "local")]
@@ -41,32 +36,12 @@ pub enum P2PKHAddress {
     ZCash,
 }
 
-pub async fn set_canister_ecdsa_public_key(key_name: String, derivation_path: Vec<Vec<u8>>) {
-    // Fetch the public key of the given derivation path.
-    let public_key = ecdsa_api::ecdsa_public_key(key_name.clone(), derivation_path.clone()).await;
-    CANISTER_ECDSA_PUBLIC_KEY.with(|k| {
-        k.replace(Some(public_key.clone()));
-    });
-
-    log(&format!(
-        "set_canister_ecdsa_public_key: key_name: {}, derivation_path: {:?}, public_key: {:?}",
-        key_name, derivation_path, public_key
-    ));
-}
-
 /// Returns the P2PKH address of this canister at the given derivation path.
 pub fn get_p2pkh_address(network: FluxNetwork, address_type: P2PKHAddress) -> String {
-    // Fetch the public key of the given derivation path.
-    let public_key = CANISTER_ECDSA_PUBLIC_KEY.with(|k| k.borrow().clone());
-
-    if public_key.is_none() {
-        trap(
-            "Canister ECDSA public key is not set. Call the set_canister_public_key method first.",
-        );
-    }
-
+    // Get the canister public key stored in the thread_local.
+    let public_key = get_canister_ecdsa_public_key();
     // Compute the address.
-    public_key_to_p2pkh_address(network, address_type, &public_key.unwrap())
+    public_key_to_p2pkh_address(network, address_type, &public_key)
 }
 
 fn sha256(data: &[u8]) -> Vec<u8> {
