@@ -12,6 +12,6 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "ic-websocket-js": "^0.3.0"
+    "ic-websocket-js": "^0.3.1"
   }
 }

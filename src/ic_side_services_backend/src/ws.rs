@@ -6,18 +6,12 @@ use crate::{
     logger::log,
 };
 
-pub const GATEWAY_PRINCIPAL: &str =
-    "3656s-3kqlj-dkm5d-oputg-ymybu-4gnuq-7aojd-w2fzw-5lfp2-4zhx3-4ae";
-
 pub fn init_ws() {
-    let params = WsInitParams::new(
-        WsHandlers {
-            on_open: Some(on_open),
-            on_message: Some(on_message),
-            on_close: Some(on_close),
-        },
-        vec![String::from(GATEWAY_PRINCIPAL)],
-    );
+    let params = WsInitParams::new(WsHandlers {
+        on_open: Some(on_open),
+        on_message: Some(on_message),
+        on_close: Some(on_close),
+    });
 
     ic_websocket_cdk::init(params);
 }
