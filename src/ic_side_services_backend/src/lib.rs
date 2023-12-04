@@ -10,6 +10,7 @@ use ws::init_ws;
 
 mod ecdsa_api;
 mod flux;
+mod flux_api;
 mod http_over_ws;
 mod logger;
 mod ws;
@@ -61,6 +62,11 @@ pub async fn sign_with_ecdsa(message: String, derivation_path: Option<String>) -
     let signature = ecdsa_api::sign_with_ecdsa(derivation_path, message_hash).await;
     let signature_bytes = flux::encode_signature(&signature);
     general_purpose::STANDARD.encode(signature_bytes)
+}
+
+#[update]
+pub fn flux_login() {
+    flux_api::login();
 }
 
 #[pre_upgrade]

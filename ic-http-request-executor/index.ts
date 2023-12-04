@@ -16,7 +16,7 @@ console.log("Canister ID:", canisterId);
 const ws = new IcWebSocket(gatewayUrl, {}, wsConfig);
 
 ws.onopen = () => {
-  console.log("WebSocket connected");
+  console.log("WebSocket connected with principal", ws["_clientKey"].client_principal.toString());
 };
 
 ws.onmessage = async (ev) => {
@@ -42,7 +42,8 @@ ws.onmessage = async (ev) => {
         "\nurl:", url,
         "\nmethod:", method,
         "\nheaders:", headers,
-        "\nbody bytes:", body?.length
+        "\nbody bytes:", body?.length,
+        // "\nbody:", body ? new TextDecoder().decode(body) : null
       );
 
       const response = await fetch(url, {
@@ -53,6 +54,9 @@ ws.onmessage = async (ev) => {
 
       console.log("Got response from", request.url, "Status:", response.status);
 
+      const responseBody = new Uint8Array(await response.arrayBuffer());
+      // console.log("Response body:", new TextDecoder().decode(responseBody));
+
       ws.send({
         HttpResponse: [
           requestId,
@@ -62,7 +66,7 @@ ws.onmessage = async (ev) => {
               name: key,
               value,
             })),
-            body: new Uint8Array(await response.arrayBuffer()),
+            body: responseBody,
           },
         ],
       });

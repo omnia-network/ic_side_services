@@ -1,21 +1,26 @@
 use std::{
     cell::RefCell,
     collections::{BTreeMap, HashMap, HashSet},
+    future::Future,
+    pin::Pin,
 };
 
 use candid::{decode_one, encode_one, CandidType, Deserialize};
 use ic_cdk::{
-    api::management_canister::http_request::{HttpHeader, HttpResponse},
-    query, trap, update,
+    api::management_canister::http_request::{
+        HttpHeader as ApiHttpHeader, HttpResponse as ApiHttpResponse,
+    },
+    query, trap,
 };
 use ic_websocket_cdk::*;
+use url::Url;
 
 use crate::{logger::log, ws::send_ws_message};
 
-type HttpRequestId = u32;
+pub type HttpRequestId = u32;
 
-#[derive(CandidType, Clone, Deserialize)]
-enum HttpMethod {
+#[derive(CandidType, Clone, Debug, Deserialize)]
+pub enum HttpMethod {
     GET,
     POST,
     PUT,
@@ -23,7 +28,9 @@ enum HttpMethod {
     DELETE,
 }
 
-#[derive(CandidType, Clone, Deserialize)]
+pub type HttpHeader = ApiHttpHeader;
+
+#[derive(CandidType, Clone, Debug, Deserialize)]
 pub struct HttpRequest {
     url: String,
     method: HttpMethod,
@@ -31,7 +38,10 @@ pub struct HttpRequest {
     body: Option<Vec<u8>>,
 }
 
-#[derive(CandidType, Deserialize)]
+pub type HttpResponse = ApiHttpResponse;
+pub type HttpCallback = fn(HttpResponse) -> Pin<Box<dyn Future<Output = ()>>>;
+
+#[derive(CandidType, Debug, Deserialize)]
 pub enum HttpOverWsMessage {
     HttpRequest(HttpRequestId, HttpRequest),
     HttpResponse(HttpRequestId, HttpResponse),
@@ -48,17 +58,19 @@ impl HttpOverWsMessage {
     }
 }
 
-#[derive(CandidType, Clone, Deserialize)]
+#[derive(Clone)]
 struct HttpRequestState {
     request: HttpRequest,
     response: Option<HttpResponse>,
+    callback: Option<HttpCallback>,
 }
 
 impl HttpRequestState {
-    fn new(request: HttpRequest) -> Self {
+    fn new(request: HttpRequest, callback: Option<HttpCallback>) -> Self {
         HttpRequestState {
             request,
             response: None,
+            callback,
         }
     }
 }
@@ -153,6 +165,11 @@ pub fn on_message(args: OnMessageCallbackArgs) {
     let incoming_msg = HttpOverWsMessage::from_bytes(&args.message);
     let client_principal = args.client_principal;
 
+    log(&format!(
+        "http_over_ws: incoming message: {:?} from {}",
+        incoming_msg, client_principal
+    ));
+
     match incoming_msg {
         HttpOverWsMessage::HttpRequest(_, _) => {
             send_ws_message(
@@ -168,15 +185,23 @@ pub fn on_message(args: OnMessageCallbackArgs) {
                     .borrow_mut()
                     .is_request_assigned_to_client(client_principal, request_id)
             }) {
-                HTTP_REQUESTS.with(|http_requests| {
-                    http_requests
-                        .borrow_mut()
-                        .get_mut(&request_id)
-                        .and_then(|request| {
-                            request.response = Some(response);
-                            Some(request)
+                let mut r = HTTP_REQUESTS
+                    .with(|http_requests| http_requests.borrow().get(&request_id).cloned());
+
+                match &mut r {
+                    Some(r) => {
+                        r.response = Some(response.clone());
+
+                        if let Some(callback) = r.callback {
+                            ic_cdk::spawn(async move { callback(response).await });
+                        }
+
+                        HTTP_REQUESTS.with(|http_requests| {
+                            http_requests.borrow_mut().insert(request_id, r.to_owned())
                         });
-                });
+                    }
+                    None => {}
+                };
 
                 CONNECTED_CLIENTS.with(|clients| {
                     clients
@@ -202,15 +227,15 @@ pub fn on_close(args: OnCloseCallbackArgs) {
     });
 }
 
-#[update]
-fn execute_http_request(
-    url: String,
+pub fn execute_http_request(
+    url: Url,
     method: HttpMethod,
     headers: Vec<HttpHeader>,
     body: Option<String>,
+    callback: Option<HttpCallback>,
 ) -> HttpRequestId {
     let http_request = HttpRequest {
-        url,
+        url: url.to_string(),
         method,
         headers,
         body: body.map(|b| b.into_bytes()),
@@ -228,9 +253,10 @@ fn execute_http_request(
         CONNECTED_CLIENTS.with(|clients| clients.borrow_mut().assign_request(request_id))
     {
         HTTP_REQUESTS.with(|http_requests| {
-            http_requests
-                .borrow_mut()
-                .insert(request_id, HttpRequestState::new(http_request.clone()));
+            http_requests.borrow_mut().insert(
+                request_id,
+                HttpRequestState::new(http_request.clone(), callback),
+            );
         });
 
         send_ws_message(
