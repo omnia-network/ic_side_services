@@ -207,10 +207,9 @@ pub fn on_message(args: OnMessageCallbackArgs) {
                     .borrow_mut()
                     .is_request_assigned_to_client(client_principal, request_id)
             }) {
-                let mut r = HTTP_REQUESTS
-                    .with(|http_requests| http_requests.borrow().get(&request_id).cloned());
-
-                match &mut r {
+                match &mut HTTP_REQUESTS
+                    .with(|http_requests| http_requests.borrow().get(&request_id).cloned())
+                {
                     Some(r) => {
                         r.response = Some(response.clone());
 
@@ -220,7 +219,7 @@ pub fn on_message(args: OnMessageCallbackArgs) {
                         }
 
                         HTTP_REQUESTS.with(|http_requests| {
-                            http_requests.borrow_mut().insert(request_id, r.to_owned())
+                            http_requests.borrow_mut().insert(request_id, r.clone())
                         });
 
                         if let Some(callback) = r.callback {
