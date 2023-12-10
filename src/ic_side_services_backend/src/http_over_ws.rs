@@ -11,7 +11,7 @@ use ic_cdk::{
     api::management_canister::http_request::{
         HttpHeader as ApiHttpHeader, HttpResponse as ApiHttpResponse,
     },
-    query, trap,
+    print, query, trap,
 };
 use ic_cdk_timers::TimerId;
 use ic_websocket_cdk::*;
@@ -264,6 +264,11 @@ pub fn on_close(args: OnCloseCallbackArgs) {
     CONNECTED_CLIENTS.with(|clients| {
         clients.borrow_mut().remove_client(&args.client_principal);
     });
+
+    print(&format!(
+        "http_over_ws: Client {} disconnected",
+        args.client_principal
+    ))
 }
 
 fn http_request_timeout(client_principal: ClientPrincipal, request_id: HttpRequestId) {
