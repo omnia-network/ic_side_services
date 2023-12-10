@@ -264,10 +264,37 @@ pub fn execute_http_request(
             HttpOverWsMessage::HttpRequest(request_id, http_request),
         );
     } else {
-        trap("No available clients");
+        trap("No available HTTP clients");
     }
 
     request_id
+}
+
+#[derive(CandidType, Deserialize)]
+struct PrettyHttpRequest {
+    url: String,
+    method: HttpMethod,
+    headers: Vec<HttpHeader>,
+    body: Option<String>,
+}
+
+#[query]
+fn get_http_request(request_id: HttpRequestId) -> Option<PrettyHttpRequest> {
+    HTTP_REQUESTS.with(|http_requests| {
+        http_requests
+            .borrow()
+            .get(&request_id)
+            .map(|r| PrettyHttpRequest {
+                url: r.request.url.clone(),
+                method: r.request.method.clone(),
+                headers: r.request.headers.clone(),
+                body: r
+                    .request
+                    .body
+                    .as_ref()
+                    .map(|b| String::from_utf8_lossy(b).to_string()),
+            })
+    })
 }
 
 #[derive(CandidType, Deserialize)]

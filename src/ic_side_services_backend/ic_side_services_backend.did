@@ -105,6 +105,13 @@ type HttpRequestState = record {
     response : opt HttpResponse;
 };
 
+type PrettyHttpRequest = record {
+    url : text;
+    method : HttpMethod;
+    headers : vec HttpHeader;
+    body : opt text;
+};
+
 type PrettyHttpResponse = record {
     status : nat;
     headers : vec HttpHeader;
@@ -132,6 +139,7 @@ service : (FluxNetwork) -> {
     "ws_get_messages" : (CanisterWsGetMessagesArguments) -> (CanisterWsGetMessagesResult) query;
 
     // "execute_http_request" : (text, HttpMethod, vec HttpHeader, opt text) -> (HttpRequestId);
+    "get_http_request" : (HttpRequestId) -> (opt PrettyHttpRequest) query;
     "get_http_response" : (HttpRequestId) -> (opt PrettyHttpResponse) query;
     "get_connected_clients" : () -> (ConnectedClients) query;
 
