@@ -20,32 +20,32 @@ ws.onopen = () => {
 };
 
 ws.onmessage = async (ev) => {
-  try {
-    const incomingMessage = ev.data;
-    console.log("Message", incomingMessage);
+  const incomingMessage = ev.data;
+  console.log("Message", incomingMessage);
 
-    if ("HttpRequest" in incomingMessage) {
-      const requestId = incomingMessage.HttpRequest[0];
-      const request = incomingMessage.HttpRequest[1];
+  if ("HttpRequest" in incomingMessage) {
+    const requestId = incomingMessage.HttpRequest[0];
+    const request = incomingMessage.HttpRequest[1];
 
-      const url = new URL(request.url);
-      const method = Object.keys(request.method)[0]; // workaround to get the candid enum
-      const headers = new Headers(
-        request.headers.map(({ name, value }) => [name, value] as [string, string])
-      );
-      const body = (request.body.length > 0 && method !== "GET")
-        ? new Uint8Array(request.body[0]!)
-        : null;
+    const url = new URL(request.url);
+    const method = Object.keys(request.method)[0]; // workaround to get the candid enum
+    const headers = new Headers(
+      request.headers.map(({ name, value }) => [name, value] as [string, string])
+    );
+    const body = (request.body.length > 0 && method !== "GET")
+      ? new Uint8Array(request.body[0]!)
+      : null;
 
-      console.log(
-        "Sending HTTP request.",
-        "\nurl:", url,
-        "\nmethod:", method,
-        "\nheaders:", headers,
-        "\nbody bytes:", body?.length,
-        // "\nbody:", body ? new TextDecoder().decode(body) : null
-      );
+    console.log(
+      "Sending HTTP request.",
+      "\nurl:", url,
+      "\nmethod:", method,
+      "\nheaders:", headers,
+      "\nbody bytes:", body?.length,
+      "\nbody:", body ? new TextDecoder().decode(body) : null
+    );
 
+    try {
       const response = await fetch(url, {
         method,
         headers,
@@ -72,14 +72,14 @@ ws.onmessage = async (ev) => {
       });
 
       console.log("Sent response");
-    } else if ("Error" in incomingMessage) {
-      console.error("http-over-ws: incoming error:", incomingMessage.Error);
+    } catch (e) {
+      console.error("http-over-ws: error", e);
+      ws.send({
+        Error: [[requestId], String(e)],
+      });
     }
-  } catch (e) {
-    console.error("http-over-ws: error", e);
-    ws.send({
-      Error: String(e),
-    });
+  } else if ("Error" in incomingMessage) {
+    console.error("http-over-ws: incoming error:", incomingMessage.Error);
   }
 };
 

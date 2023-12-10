@@ -414,6 +414,7 @@ dependencies = [
  "flux_types",
  "hex",
  "ic-cdk",
+ "ic-cdk-timers",
  "ic-websocket-cdk",
  "lazy_static",
  "ripemd",

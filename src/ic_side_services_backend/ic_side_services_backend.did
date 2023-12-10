@@ -97,12 +97,7 @@ type HttpResponse = record {
 type HttpOverWsMessage = variant {
     HttpRequest : record { HttpRequestId; HttpRequest };
     HttpResponse : record { HttpRequestId; HttpResponse };
-    Error : text;
-};
-
-type HttpRequestState = record {
-    request : HttpRequest;
-    response : opt HttpResponse;
+    Error : record { opt HttpRequestId; text };
 };
 
 type PrettyHttpRequest = record {
@@ -116,6 +111,18 @@ type PrettyHttpResponse = record {
     status : nat;
     headers : vec HttpHeader;
     body : text;
+};
+
+type HttpRequestFailureReason = variant {
+    Timeout;
+    ErrorFromClient : text;
+    NotFound;
+    Unknown;
+};
+
+type GetHttpResponseResult = variant {
+    Ok : PrettyHttpResponse;
+    Err : HttpRequestFailureReason;
 };
 
 type ConnectedClients = record {
@@ -140,7 +147,7 @@ service : (FluxNetwork) -> {
 
     // "execute_http_request" : (text, HttpMethod, vec HttpHeader, opt text) -> (HttpRequestId);
     "get_http_request" : (HttpRequestId) -> (opt PrettyHttpRequest) query;
-    "get_http_response" : (HttpRequestId) -> (opt PrettyHttpResponse) query;
+    "get_http_response" : (HttpRequestId) -> (GetHttpResponseResult) query;
     "get_connected_clients" : () -> (ConnectedClients) query;
 
     "set_canister_public_key" : (opt text) -> ();

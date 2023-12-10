@@ -15,6 +15,7 @@ candid = "0.9.3"
 flux_types = { path = "../flux_types" }
 hex = "0.4.3"
 ic-cdk = "0.10.0"
+ic-cdk-timers = "0.4.0"
 ic-websocket-cdk = "0.3.1"
 lazy_static = "1.4.0"
 ripemd = "0.1.3"

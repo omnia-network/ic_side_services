@@ -43,13 +43,15 @@ export type FluxNetwork = { 'mainnet' : null } |
   { 'local' : null } |
   { 'testnet' : null };
 export type GatewayPrincipal = Principal;
+export type GetHttpResponseResult = { 'Ok' : PrettyHttpResponse } |
+  { 'Err' : HttpRequestFailureReason };
 export interface HttpHeader { 'value' : string, 'name' : string }
 export type HttpMethod = { 'GET' : null } |
   { 'PUT' : null } |
   { 'DELETE' : null } |
   { 'HEAD' : null } |
   { 'POST' : null };
-export type HttpOverWsMessage = { 'Error' : string } |
+export type HttpOverWsMessage = { 'Error' : [[] | [HttpRequestId], string] } |
   { 'HttpRequest' : [HttpRequestId, HttpRequest] } |
   { 'HttpResponse' : [HttpRequestId, HttpResponse] };
 export interface HttpRequest {
@@ -58,14 +60,20 @@ export interface HttpRequest {
   'body' : [] | [Uint8Array | number[]],
   'headers' : Array<HttpHeader>,
 }
+export type HttpRequestFailureReason = { 'ErrorFromClient' : string } |
+  { 'NotFound' : null } |
+  { 'Timeout' : null } |
+  { 'Unknown' : null };
 export type HttpRequestId = number;
-export interface HttpRequestState {
-  'request' : HttpRequest,
-  'response' : [] | [HttpResponse],
-}
 export interface HttpResponse {
   'status' : bigint,
   'body' : Uint8Array | number[],
+  'headers' : Array<HttpHeader>,
+}
+export interface PrettyHttpRequest {
+  'url' : string,
+  'method' : HttpMethod,
+  'body' : [] | [string],
   'headers' : Array<HttpHeader>,
 }
 export interface PrettyHttpResponse {
@@ -81,13 +89,11 @@ export interface WebsocketMessage {
   'is_service_message' : boolean,
 }
 export interface _SERVICE {
-  'execute_http_request' : ActorMethod<
-    [string, HttpMethod, Array<HttpHeader>, [] | [string]],
-    HttpRequestId
-  >,
+  'flux_login' : ActorMethod<[], undefined>,
   'get_addresses' : ActorMethod<[], [string, string]>,
   'get_connected_clients' : ActorMethod<[], ConnectedClients>,
-  'get_http_response' : ActorMethod<[HttpRequestId], [] | [PrettyHttpResponse]>,
+  'get_http_request' : ActorMethod<[HttpRequestId], [] | [PrettyHttpRequest]>,
+  'get_http_response' : ActorMethod<[HttpRequestId], GetHttpResponseResult>,
   'get_logs' : ActorMethod<[], Array<[string, string]>>,
   'set_canister_public_key' : ActorMethod<[[] | [string]], undefined>,
   'sign_with_ecdsa' : ActorMethod<[string, [] | [string]], string>,

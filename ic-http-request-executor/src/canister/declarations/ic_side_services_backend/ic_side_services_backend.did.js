@@ -4,6 +4,11 @@ export const idlFactory = ({ IDL }) => {
     'local' : IDL.Null,
     'testnet' : IDL.Null,
   });
+  const HttpRequestId = IDL.Nat32;
+  const ConnectedClients = IDL.Record({
+    'busy_clients' : IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Vec(HttpRequestId))),
+    'idle_clients' : IDL.Vec(IDL.Principal),
+  });
   const HttpMethod = IDL.Variant({
     'GET' : IDL.Null,
     'PUT' : IDL.Null,
@@ -12,15 +17,26 @@ export const idlFactory = ({ IDL }) => {
     'POST' : IDL.Null,
   });
   const HttpHeader = IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text });
-  const HttpRequestId = IDL.Nat32;
-  const ConnectedClients = IDL.Record({
-    'busy_clients' : IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Vec(HttpRequestId))),
-    'idle_clients' : IDL.Vec(IDL.Principal),
+  const PrettyHttpRequest = IDL.Record({
+    'url' : IDL.Text,
+    'method' : HttpMethod,
+    'body' : IDL.Opt(IDL.Text),
+    'headers' : IDL.Vec(HttpHeader),
   });
   const PrettyHttpResponse = IDL.Record({
     'status' : IDL.Nat,
     'body' : IDL.Text,
     'headers' : IDL.Vec(HttpHeader),
+  });
+  const HttpRequestFailureReason = IDL.Variant({
+    'ErrorFromClient' : IDL.Text,
+    'NotFound' : IDL.Null,
+    'Timeout' : IDL.Null,
+    'Unknown' : IDL.Null,
+  });
+  const GetHttpResponseResult = IDL.Variant({
+    'Ok' : PrettyHttpResponse,
+    'Err' : HttpRequestFailureReason,
   });
   const ClientPrincipal = IDL.Principal;
   const ClientKey = IDL.Record({
@@ -68,7 +84,7 @@ export const idlFactory = ({ IDL }) => {
     'headers' : IDL.Vec(HttpHeader),
   });
   const HttpOverWsMessage = IDL.Variant({
-    'Error' : IDL.Text,
+    'Error' : IDL.Tuple(IDL.Opt(HttpRequestId), IDL.Text),
     'HttpRequest' : IDL.Tuple(HttpRequestId, HttpRequest),
     'HttpResponse' : IDL.Tuple(HttpRequestId, HttpResponse),
   });
@@ -86,16 +102,17 @@ export const idlFactory = ({ IDL }) => {
     'Err' : IDL.Text,
   });
   return IDL.Service({
-    'execute_http_request' : IDL.Func(
-        [IDL.Text, HttpMethod, IDL.Vec(HttpHeader), IDL.Opt(IDL.Text)],
-        [HttpRequestId],
-        [],
-      ),
+    'flux_login' : IDL.Func([], [], []),
     'get_addresses' : IDL.Func([], [IDL.Text, IDL.Text], ['query']),
     'get_connected_clients' : IDL.Func([], [ConnectedClients], ['query']),
+    'get_http_request' : IDL.Func(
+        [HttpRequestId],
+        [IDL.Opt(PrettyHttpRequest)],
+        ['query'],
+      ),
     'get_http_response' : IDL.Func(
         [HttpRequestId],
-        [IDL.Opt(PrettyHttpResponse)],
+        [GetHttpResponseResult],
         ['query'],
       ),
     'get_logs' : IDL.Func(
