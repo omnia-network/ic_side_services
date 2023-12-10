@@ -214,10 +214,7 @@ pub fn on_message(args: OnMessageCallbackArgs) {
                     Some(r) => {
                         r.response = Some(response.clone());
 
-                        if let Some(callback) = r.callback {
-                            ic_cdk::spawn(async move { callback(response).await });
-                        }
-
+                        // response have been received, clear the timer
                         if let Some(timer_id) = r.timer_id.take() {
                             ic_cdk_timers::clear_timer(timer_id);
                         }
@@ -225,6 +222,10 @@ pub fn on_message(args: OnMessageCallbackArgs) {
                         HTTP_REQUESTS.with(|http_requests| {
                             http_requests.borrow_mut().insert(request_id, r.to_owned())
                         });
+
+                        if let Some(callback) = r.callback {
+                            ic_cdk::spawn(async move { callback(response).await });
+                        }
                     }
                     None => {}
                 };
