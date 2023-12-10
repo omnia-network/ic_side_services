@@ -89,7 +89,10 @@ export interface WebsocketMessage {
   'is_service_message' : boolean,
 }
 export interface _SERVICE {
+  'flux_fetch_balance' : ActorMethod<[], undefined>,
+  'flux_get_balance' : ActorMethod<[], [] | [number]>,
   'flux_login' : ActorMethod<[], undefined>,
+  'flux_logout' : ActorMethod<[], undefined>,
   'get_addresses' : ActorMethod<[], [string, string]>,
   'get_connected_clients' : ActorMethod<[], ConnectedClients>,
   'get_http_request' : ActorMethod<[HttpRequestId], [] | [PrettyHttpRequest]>,

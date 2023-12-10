@@ -102,7 +102,10 @@ export const idlFactory = ({ IDL }) => {
     'Err' : IDL.Text,
   });
   return IDL.Service({
+    'flux_fetch_balance' : IDL.Func([], [], []),
+    'flux_get_balance' : IDL.Func([], [IDL.Opt(IDL.Int32)], ['query']),
     'flux_login' : IDL.Func([], [], []),
+    'flux_logout' : IDL.Func([], [], []),
     'get_addresses' : IDL.Func([], [IDL.Text, IDL.Text], ['query']),
     'get_connected_clients' : IDL.Func([], [ConnectedClients], ['query']),
     'get_http_request' : IDL.Func(

@@ -34,6 +34,21 @@ pub fn init(network: FluxNetwork) {
     ));
 }
 
+#[pre_upgrade]
+fn pre_upgrade() {
+    let network = NETWORK.with(|n| n.get());
+    ic_cdk::storage::stable_save((network,)).expect("Saving network to stable store must succeed.");
+}
+
+#[post_upgrade]
+fn post_upgrade() {
+    let network = ic_cdk::storage::stable_restore::<(FluxNetwork,)>()
+        .expect("Failed to read network from stable memory.")
+        .0;
+
+    init(network);
+}
+
 /// Returns the P2PKH address of this canister at a specific derivation path.
 #[update]
 pub async fn set_canister_public_key(derivation_path: Option<String>) {
@@ -69,17 +84,17 @@ pub fn flux_login() {
     flux_api::login();
 }
 
-#[pre_upgrade]
-fn pre_upgrade() {
-    let network = NETWORK.with(|n| n.get());
-    ic_cdk::storage::stable_save((network,)).expect("Saving network to stable store must succeed.");
+#[update]
+pub fn flux_logout() {
+    flux_api::logout();
 }
 
-#[post_upgrade]
-fn post_upgrade() {
-    let network = ic_cdk::storage::stable_restore::<(FluxNetwork,)>()
-        .expect("Failed to read network from stable memory.")
-        .0;
+#[update]
+pub fn flux_fetch_balance() {
+    flux_api::fetch_balance();
+}
 
-    init(network);
+#[query]
+pub fn flux_get_balance() -> Option<i32> {
+    flux_api::get_balance()
 }

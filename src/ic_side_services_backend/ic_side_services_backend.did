@@ -155,6 +155,9 @@ service : (FluxNetwork) -> {
     "sign_with_ecdsa" : (text, opt text) -> (text);
 
     "flux_login" : () -> ();
+    "flux_logout" : () -> ();
+    "flux_fetch_balance" : () -> ();
+    "flux_get_balance" : () -> (opt int32) query;
 
     "get_logs" : () -> (vec record { text; text }) query;
 };
