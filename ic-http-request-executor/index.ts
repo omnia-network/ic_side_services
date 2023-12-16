@@ -13,76 +13,86 @@ const wsConfig = createWsConfig({
 
 console.log("Canister ID:", canisterId);
 
-const ws = new IcWebSocket(gatewayUrl, {}, wsConfig);
+let ws = openWsConnection();
 
-ws.onopen = () => {
-  console.log("WebSocket connected with principal", ws["_clientKey"].client_principal.toString());
-};
+function openWsConnection() {
+  const _ws = new IcWebSocket(gatewayUrl, {}, wsConfig);
 
-ws.onmessage = async (ev) => {
-  const incomingMessage = ev.data;
-  console.log("Message", incomingMessage);
+  _ws.onopen = () => {
+    console.log("WebSocket connected with principal", _ws["_clientKey"].client_principal.toString());
+  };
 
-  if ("HttpRequest" in incomingMessage) {
-    const requestId = incomingMessage.HttpRequest[0];
-    const request = incomingMessage.HttpRequest[1];
+  _ws.onmessage = async (ev) => {
+    const incomingMessage = ev.data;
+    console.log("Message", incomingMessage);
 
-    const url = new URL(request.url);
-    const method = Object.keys(request.method)[0]; // workaround to get the candid enum
-    const headers = new Headers(
-      request.headers.map(({ name, value }) => [name, value] as [string, string])
-    );
-    const body = (request.body.length > 0 && method !== "GET")
-      ? new Uint8Array(request.body[0]!)
-      : null;
+    if ("HttpRequest" in incomingMessage) {
+      const requestId = incomingMessage.HttpRequest[0];
+      const request = incomingMessage.HttpRequest[1];
 
-    console.log(
-      "Sending HTTP request.",
-      "\nurl:", url,
-      "\nmethod:", method,
-      "\nheaders:", headers,
-      "\nbody bytes:", body?.length,
-      "\nbody:", body ? new TextDecoder().decode(body) : null
-    );
+      const url = new URL(request.url);
+      const method = Object.keys(request.method)[0]; // workaround to get the candid enum
+      const headers = new Headers(
+        request.headers.map(({ name, value }) => [name, value] as [string, string])
+      );
+      const body = (request.body.length > 0 && method !== "GET")
+        ? new Uint8Array(request.body[0]!)
+        : null;
 
-    try {
-      const response = await fetch(url, {
-        method,
-        headers,
-        body,
-      });
+      console.log(
+        "Sending HTTP request.",
+        "\nurl:", url,
+        "\nmethod:", method,
+        "\nheaders:", headers,
+        "\nbody bytes:", body?.length,
+        "\nbody:", body ? new TextDecoder().decode(body) : null
+      );
 
-      console.log("Got response from", request.url, "Status:", response.status);
+      try {
+        const response = await fetch(url, {
+          method,
+          headers,
+          body,
+        });
 
-      const responseBody = new Uint8Array(await response.arrayBuffer());
-      // console.log("Response body:", new TextDecoder().decode(responseBody));
+        console.log("Got response from", request.url, "Status:", response.status);
 
-      ws.send({
-        HttpResponse: [
-          requestId,
-          {
-            status: BigInt(response.status),
-            headers: Array.from(response.headers.entries()).map(([key, value]) => ({
-              name: key,
-              value,
-            })),
-            body: responseBody,
-          },
-        ],
-      });
+        const responseBody = new Uint8Array(await response.arrayBuffer());
+        // console.log("Response body:", new TextDecoder().decode(responseBody));
 
-      console.log("Sent response");
-    } catch (e) {
-      console.error("http-over-ws: error", e);
-      ws.send({
-        Error: [[requestId], String(e)],
-      });
+        _ws.send({
+          HttpResponse: [
+            requestId,
+            {
+              status: BigInt(response.status),
+              headers: Array.from(response.headers.entries()).map(([key, value]) => ({
+                name: key,
+                value,
+              })),
+              body: responseBody,
+            },
+          ],
+        });
+
+        console.log("Sent response");
+      } catch (e) {
+        console.error("http-over-ws: error", e);
+        _ws.send({
+          Error: [[requestId], String(e)],
+        });
+      }
+    } else if ("Error" in incomingMessage) {
+      console.error("http-over-ws: incoming error:", incomingMessage.Error);
     }
-  } else if ("Error" in incomingMessage) {
-    console.error("http-over-ws: incoming error:", incomingMessage.Error);
-  }
-};
+  };
 
-ws.onclose = (ev) => {
-  console.log("WebSocket disconnected", ev);
+  _ws.onclose = (ev) => {
+    console.warn("WebSocket disconnected. Reason:", ev.reason);
+    console.log("Reconnecting...");
+    ws = openWsConnection();
+  };
+
+  _ws.onerror = (ev) => {
+    console.error("WebSocket error:", ev.message);
+  };
 };
