@@ -1,5 +1,6 @@
 {
   "name": "ic-http-request-executor",
+  "version": "0.0.4",
   "module": "index.ts",
   "devDependencies": {
     "bun-types": "latest"
