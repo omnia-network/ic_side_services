@@ -1,17 +1,17 @@
 {
   "name": "ic-http-request-executor",
   "module": "index.ts",
-  "type": "module",
-  "scripts": {
-    "start": "bun run index.ts"
-  },
   "devDependencies": {
     "bun-types": "latest"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
   },
+  "scripts": {
+    "start": "bun run index.ts"
+  },
+  "type": "module",
   "dependencies": {
-    "ic-websocket-js": "^0.3.1"
+    "ic-websocket-js": "^0.3.2"
   }
 }

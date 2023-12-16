@@ -17,7 +17,7 @@ pub fn init_ws() {
 }
 
 pub fn send_ws_message(client_principal: ClientPrincipal, message: HttpOverWsMessage) {
-    if let Err(send_err) = ic_websocket_cdk::ws_send(client_principal, message.to_bytes()) {
+    if let Err(send_err) = ic_websocket_cdk::send(client_principal, message.to_bytes()) {
         log(&format!("ws: Failed to send message: {}", send_err))
     }
 }
