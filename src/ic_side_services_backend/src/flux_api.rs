@@ -103,9 +103,9 @@ impl FluxState {
         self.flux_balance
     }
 
-    fn check_balance(&self) -> bool {
-        self.flux_balance.is_some_and(|balance| balance > 0)
-    }
+    // fn check_balance(&self) -> bool {
+    //     self.flux_balance.is_some_and(|balance| balance > 0)
+    // }
 }
 
 pub fn login() {

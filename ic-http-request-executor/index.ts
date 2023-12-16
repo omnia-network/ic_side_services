@@ -24,7 +24,7 @@ function openWsConnection() {
 
   _ws.onmessage = async (ev) => {
     const incomingMessage = ev.data;
-    console.log("Message", incomingMessage);
+    // console.log("Message", incomingMessage);
 
     if ("HttpRequest" in incomingMessage) {
       const requestId = incomingMessage.HttpRequest[0];
@@ -40,8 +40,8 @@ function openWsConnection() {
         : null;
 
       console.log(
-        "Sending HTTP request.",
-        "\nurl:", url,
+        "\nExecuting HTTP request:",
+        "\nurl:", url.toString(),
         "\nmethod:", method,
         "\nheaders:", headers,
         "\nbody bytes:", body?.length,
@@ -55,10 +55,15 @@ function openWsConnection() {
           body,
         });
 
-        console.log("Got response from", request.url, "Status:", response.status);
-
         const responseBody = new Uint8Array(await response.arrayBuffer());
-        // console.log("Response body:", new TextDecoder().decode(responseBody));
+
+        console.log(
+          "HTTP response:",
+          "\nurl:", request.url,
+          "\nstatus:", response.status,
+          "\nbody bytes:", responseBody.byteLength,
+          // "\nbody:", new TextDecoder().decode(responseBody),
+        );
 
         _ws.send({
           HttpResponse: [
@@ -74,7 +79,7 @@ function openWsConnection() {
           ],
         });
 
-        console.log("Sent response");
+        console.log("Sent response over WebSocket.");
       } catch (e) {
         console.error("http-over-ws: error", e);
         _ws.send({
