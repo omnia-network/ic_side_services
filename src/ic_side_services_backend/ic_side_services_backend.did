@@ -135,8 +135,6 @@ type FluxNetwork = variant {
     testnet;
     mainnet;
 };
-
-type BitcoinAddress = text;
 /* End Application types */
 
 service : (FluxNetwork) -> {

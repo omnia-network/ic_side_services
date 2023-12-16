@@ -1,5 +1,6 @@
 use std::{cell::RefCell, ops::Deref};
 
+use flux_types::models::*;
 use ic_cdk::trap;
 use lazy_static::lazy_static;
 use url::Url;
@@ -43,11 +44,7 @@ impl FluxState {
         log(&format!("set zelid auth header: {}", zelid_auth));
     }
 
-    fn set_auth_header_from_verifylogin_response(
-        &mut self,
-        res: &flux_types::models::VerifyLogin200Response,
-    ) {
-        let data = res.data.to_owned().unwrap().to_owned();
+    fn set_auth_header_from_verifylogin_response_data(&mut self, data: VerifyLogin200ResponseData) {
         log(&format!("verifylogin response: {:?}", data));
 
         let zelid = data.zelid.unwrap();
@@ -93,7 +90,7 @@ impl FluxState {
 
     fn set_balance_from_getaddressbalance_response(
         &mut self,
-        res: &flux_types::models::get_address_balance_200_response::GetAddressBalance200Response,
+        res: &get_address_balance_200_response::GetAddressBalance200Response,
     ) {
         let balance = res.data.unwrap();
         self.set_balance(balance);
@@ -117,11 +114,15 @@ pub fn login() {
             return;
         }
 
-        let res_body = serde_json::from_slice(&res.body).unwrap();
+        let VerifyLogin200Response { data, status } = serde_json::from_slice(&res.body).unwrap();
+        if let verify_login_200_response::Status::Error = status.unwrap() {
+            log(&format!("verifylogin error: {:?}", data));
+            return;
+        }
 
         FLUX_STATE.with(|h| {
             h.borrow_mut()
-                .set_auth_header_from_verifylogin_response(&res_body);
+                .set_auth_header_from_verifylogin_response_data(*data.unwrap());
         });
     }
 
@@ -131,8 +132,11 @@ pub fn login() {
             return;
         }
 
-        let flux_types::models::LoginPhrase200Response { data, .. } =
-            serde_json::from_slice(&res.body).unwrap();
+        let LoginPhrase200Response { data, status } = serde_json::from_slice(&res.body).unwrap();
+        if let Status::Error = status.unwrap() {
+            log(&format!("loginphrase error: {:?}", data));
+            return;
+        }
 
         let login_phrase = data.unwrap();
 
@@ -141,7 +145,7 @@ pub fn login() {
         // get the signature for the loginphrase
         let signature = sign_with_ecdsa(login_phrase.clone(), None).await;
 
-        let body = flux_types::models::ZelIdLogin {
+        let body = ZelIdLogin {
             login_phrase: Some(login_phrase),
             zelid: Some(flux::get_p2pkh_address(
                 NETWORK.with(|n| n.get()),
