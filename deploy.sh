@@ -2,6 +2,10 @@
 
 set -e
 
+echo -e "\nDisconnecting all HTTP request executor clients..."
+dfx canister call --ic ic_side_services_backend disconnect_all_clients
+
+echo -e "\nDeploying canister..."
 dfx deploy ic_side_services_backend --ic --argument '(variant { mainnet })'
 
 # make the canister fetch the ECDSA public key and store in its state

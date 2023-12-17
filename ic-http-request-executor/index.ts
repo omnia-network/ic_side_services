@@ -95,8 +95,14 @@ function openWsConnection() {
 
   _ws.onclose = (ev) => {
     console.warn("WebSocket disconnected. Reason:", ev.reason);
-    console.log("Reconnecting...");
-    ws = openWsConnection();
+
+    // reconnect only if the connection was closed due to an error
+    // TODO: use better logic here, because we may want to reconnect
+    // even if there was no error
+    if (ev.reason !== "ClosedByApplication") {
+      console.log("Reconnecting...");
+      ws = openWsConnection();
+    }
   };
 
   _ws.onerror = (ev) => {

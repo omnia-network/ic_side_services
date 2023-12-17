@@ -148,6 +148,7 @@ service : (FluxNetwork) -> {
     "get_http_response" : (HttpRequestId) -> (GetHttpResponseResult) query;
     "get_connected_clients" : () -> (ConnectedClients) query;
     "disconnect_client" : (ClientPrincipal) -> ();
+    "disconnect_all_clients" : () -> ();
 
     "set_canister_public_key" : (opt text) -> ();
     "get_addresses" : () -> (text, text) query;

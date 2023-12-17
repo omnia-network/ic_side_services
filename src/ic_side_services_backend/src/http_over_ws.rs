@@ -423,3 +423,17 @@ fn get_connected_clients() -> ConnectedClients {
 fn disconnect_client(client_principal: ClientPrincipal) {
     close_client_connection(client_principal);
 }
+
+#[update]
+pub fn disconnect_all_clients() {
+    let clients = CONNECTED_CLIENTS.with(|state| {
+        let mut clients: Vec<ClientPrincipal> =
+            state.borrow().busy_clients.keys().cloned().collect();
+        clients.extend(state.borrow().idle_clients.iter().cloned());
+        clients
+    });
+
+    for client_principal in clients {
+        disconnect_client(client_principal);
+    }
+}
