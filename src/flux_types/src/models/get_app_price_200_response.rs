@@ -17,7 +17,7 @@ pub struct GetAppPrice200Response {
     pub status: Option<crate::models::Status>,
     /// FLUX amount
     #[serde(rename = "data", skip_serializing_if = "Option::is_none")]
-    pub data: Option<String>,
+    pub data: Option<f32>,
 }
 
 impl GetAppPrice200Response {

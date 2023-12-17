@@ -110,3 +110,30 @@ fn flux_get_balance() -> Option<i32> {
 fn flux_is_logged_in() -> bool {
     flux_api::authentication::is_logged_in()
 }
+
+#[update]
+fn flux_calculate_app_price() -> http_over_ws::HttpRequestId {
+    let mut compose = flux_types::models::GetAppPriceRequestComposeInner::new();
+    compose.name = Some("ichttprequestexecutor".to_string());
+    compose.description = Some("IC HTTP Request Executor client".to_string());
+    compose.repotag = Some("omniadevs/ic-http-request-executor:v0.0.4".to_string());
+    compose.ports = Some(vec![80]);
+    compose.domains = Some(vec![String::new()]);
+    compose.environment_parameters = Some(vec![
+        "IC_NETWORK_URL".to_string(),
+        "https://icp0.io".to_string(),
+        "IC_WS_GATEWAY_URL".to_string(),
+        "wss://gateway.icws.io".to_string(),
+        "CANISTER_ID_IC_SIDE_SERVICES_BACKEND".to_string(),
+        "5fhww-dyaaa-aaaao-a26ia-cai".to_string(),
+    ]);
+    compose.commands = Some(vec![]);
+    compose.container_ports = Some(vec![80]);
+    compose.container_data = Some("/data".to_string());
+    compose.cpu = Some(0.1); // (cores) min: 0.1 max: 15.0
+    compose.ram = Some(100); // (MB) min: 100 max: 59000
+    compose.hdd = Some(1); // (GB) min: 1 max: 840
+    compose.tiered = Some(false);
+
+    flux_api::deployment::calculate_app_price(compose)
+}

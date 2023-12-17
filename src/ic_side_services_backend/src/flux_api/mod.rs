@@ -9,6 +9,7 @@ use crate::{http_over_ws::HttpHeader, logger::log};
 
 pub mod authentication;
 pub mod balance;
+pub mod deployment;
 
 const DEFAULT_HTTP_REQUEST_TIMEOUT_MS: u64 = 15_000;
 

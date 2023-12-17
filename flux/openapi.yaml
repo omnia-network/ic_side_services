@@ -18099,7 +18099,7 @@ paths:
                   status:
                     $ref: '#/components/schemas/status'
                   data:
-                    type: string
+                    type: number
                     description: FLUX amount
               example:
                 status: success
