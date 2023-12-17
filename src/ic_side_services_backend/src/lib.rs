@@ -17,6 +17,7 @@ mod flux;
 mod flux_api;
 mod http_over_ws;
 mod logger;
+mod utils;
 mod ws;
 
 thread_local! {
@@ -114,21 +115,19 @@ fn flux_is_logged_in() -> bool {
     flux_api::authentication::is_logged_in()
 }
 
-#[update]
-fn flux_calculate_app_price() -> http_over_ws::HttpRequestId {
-    let mut compose = flux_types::models::GetAppPriceRequestComposeInner::new();
+/// Temporary deployment info.
+/// It'll be the input of [flux_calculate_app_price] and [flux_register_app] methods.
+fn tmp_deployment_info() -> flux_api::deployment::DeploymentInfo {
+    let mut compose = flux_api::deployment::ComposeSpec::new();
     compose.name = Some("ichttprequestexecutor".to_string());
     compose.description = Some("IC HTTP Request Executor client".to_string());
     compose.repotag = Some("omniadevs/ic-http-request-executor:v0.0.4".to_string());
     compose.ports = Some(vec![80]);
     compose.domains = Some(vec![String::new()]);
     compose.environment_parameters = Some(vec![
-        "IC_NETWORK_URL".to_string(),
-        "https://icp0.io".to_string(),
-        "IC_WS_GATEWAY_URL".to_string(),
-        "wss://gateway.icws.io".to_string(),
-        "CANISTER_ID_IC_SIDE_SERVICES_BACKEND".to_string(),
-        "5fhww-dyaaa-aaaao-a26ia-cai".to_string(),
+        "IC_NETWORK_URL=https://icp0.io".to_string(),
+        "IC_WS_GATEWAY_URL=wss://gateway.icws.io".to_string(),
+        "CANISTER_ID_IC_SIDE_SERVICES_BACKEND=5fhww-dyaaa-aaaao-a26ia-cai".to_string(),
     ]);
     compose.commands = Some(vec![]);
     compose.container_ports = Some(vec![80]);
@@ -137,6 +136,23 @@ fn flux_calculate_app_price() -> http_over_ws::HttpRequestId {
     compose.ram = Some(100); // (MB) min: 100 max: 59000
     compose.hdd = Some(1); // (GB) min: 1 max: 840
     compose.tiered = Some(false);
+    compose.secrets = Some(String::new()); // must be included as empty string
+    compose.repoauth = Some(String::new()); // must be included as empty string
 
-    flux_api::deployment::calculate_app_price(compose)
+    flux_api::deployment::DeploymentInfo {
+        compose,
+        instances: 3,
+        expires_after_blocks: 5000,
+        static_ip: false,
+    }
+}
+
+#[update]
+fn flux_calculate_app_price() -> http_over_ws::HttpRequestId {
+    flux_api::deployment::calculate_app_price(tmp_deployment_info())
+}
+
+#[update]
+async fn flux_register_app() -> http_over_ws::HttpRequestId {
+    flux_api::deployment::register_app(tmp_deployment_info()).await
 }
