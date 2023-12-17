@@ -161,6 +161,7 @@ service : (FluxNetwork) -> {
     "flux_is_logged_in" : () -> (bool) query;
     "flux_calculate_app_price" : () -> (HttpRequestId);
     "flux_register_app" : () -> (HttpRequestId);
+    "flux_get_deployment_information" : () -> (HttpRequestId);
 
     "get_logs" : () -> (vec record { text; text }) query;
 };

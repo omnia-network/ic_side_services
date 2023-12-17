@@ -1,6 +1,7 @@
 use std::ops::Deref;
 
 use flux_types::models::*;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     flux,
@@ -142,5 +143,58 @@ pub async fn register_app(deployment_info: DeploymentInfo) -> HttpRequestId {
         Some(|res| Box::pin(appregister_cb(res))),
         // this request can take longer to complete due to the sign_with_ecdsa in the callback
         Some(2 * DEFAULT_HTTP_REQUEST_TIMEOUT_MS),
+    )
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+struct DeploymentInformationData {
+    address: String,
+}
+
+/// For some reason, this is not generated from the OpenAPI spec.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+struct DeploymentInformationResponse {
+    #[serde(rename = "status", skip_serializing_if = "Option::is_none")]
+    pub status: Option<Status>,
+    /// Status of the cleanup in progress
+    #[serde(rename = "data", skip_serializing_if = "Option::is_none")]
+    pub data: Option<DeploymentInformationData>,
+}
+
+/// See https://docs.runonflux.io/#tag/Apps/operation/getDeploymentInformatio.
+pub fn fetch_deployment_information() -> HttpRequestId {
+    let deploymentinformation_url = FLUX_API_BASE_URL
+        .join("/apps/deploymentinformation")
+        .unwrap();
+
+    async fn deploymentinformation_cb(res: HttpResponse) {
+        if res.status != 200 {
+            log(&format!(
+                "deploymentinformation failed with status: {}",
+                res.status
+            ));
+            return;
+        }
+
+        let DeploymentInformationResponse { status, data } =
+            serde_json::from_slice(&res.body).unwrap();
+        if let Status::Error = status.unwrap() {
+            log(&format!("deploymentinformation error: {:?}", data));
+            return;
+        }
+
+        log(&format!(
+            "deploymentinformation address: {:?}",
+            data.unwrap().address
+        ));
+    }
+
+    execute_http_request(
+        deploymentinformation_url,
+        HttpMethod::GET,
+        vec![CONTENT_TYPE_TEXT_PLAIN_HEADER.deref().clone()],
+        None,
+        Some(|res| Box::pin(deploymentinformation_cb(res))),
+        Some(DEFAULT_HTTP_REQUEST_TIMEOUT_MS),
     )
 }

@@ -156,3 +156,8 @@ fn flux_calculate_app_price() -> http_over_ws::HttpRequestId {
 async fn flux_register_app() -> http_over_ws::HttpRequestId {
     flux_api::deployment::register_app(tmp_deployment_info()).await
 }
+
+#[update]
+fn flux_get_deployment_information() -> http_over_ws::HttpRequestId {
+    flux_api::deployment::fetch_deployment_information()
+}
