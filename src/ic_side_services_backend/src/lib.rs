@@ -98,3 +98,8 @@ pub fn flux_fetch_balance() {
 pub fn flux_get_balance() -> Option<i32> {
     flux_api::get_balance()
 }
+
+#[query]
+fn flux_is_logged_in() -> bool {
+    flux_api::is_logged_in()
+}

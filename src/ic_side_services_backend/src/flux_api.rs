@@ -70,12 +70,14 @@ impl FluxState {
         self.set_auth_header(zelid_auth_header);
     }
 
-    fn get_zelid_auth_header_or_trap(&self) -> HttpHeader {
-        if self.zelid_auth_header.is_none() {
-            trap("zelid auth header not set. call login() first");
-        }
+    fn get_zelid_auth_header(&self) -> Option<HttpHeader> {
+        self.zelid_auth_header.clone()
+    }
 
-        self.zelid_auth_header.to_owned().unwrap()
+    fn get_zelid_auth_header_or_trap(&self) -> HttpHeader {
+        self.get_zelid_auth_header().unwrap_or_else(|| {
+            trap("zelid auth header not set. call login() first");
+        })
     }
 
     fn reset_auth_header(&mut self) {
@@ -235,4 +237,8 @@ pub fn fetch_balance() {
 
 pub fn get_balance() -> Option<i32> {
     FLUX_STATE.with(|b| b.borrow().get_balance())
+}
+
+pub fn is_logged_in() -> bool {
+    FLUX_STATE.with(|b| b.borrow().get_zelid_auth_header().is_some())
 }

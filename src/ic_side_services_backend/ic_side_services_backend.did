@@ -156,6 +156,7 @@ service : (FluxNetwork) -> {
     "flux_logout" : () -> ();
     "flux_fetch_balance" : () -> ();
     "flux_get_balance" : () -> (opt int32) query;
+    "flux_is_logged_in" : () -> (bool) query;
 
     "get_logs" : () -> (vec record { text; text }) query;
 };
