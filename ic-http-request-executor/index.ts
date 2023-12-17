@@ -17,9 +17,11 @@ let ws = openWsConnection();
 
 function openWsConnection() {
   const _ws = new IcWebSocket(gatewayUrl, {}, wsConfig);
+  const principal = _ws["_clientKey"].client_principal.toString();
+  console.log("WebSocket principal:", principal);
 
   _ws.onopen = () => {
-    console.log("WebSocket connected with principal", _ws["_clientKey"].client_principal.toString());
+    console.log("WebSocket connected with principal", principal);
   };
 
   _ws.onmessage = async (ev) => {
