@@ -37,6 +37,7 @@ pub fn fetch_balance() -> HttpRequestId {
     )
 }
 
-pub fn get_balance() -> Option<i32> {
-    FLUX_STATE.with(|b| b.borrow().get_balance())
+/// Returns FLUX token balance.
+pub fn get_balance() -> Option<f32> {
+    FLUX_STATE.with(|b| b.borrow().get_balance().map(|v| (v as f32) / 100_000_000.0))
 }

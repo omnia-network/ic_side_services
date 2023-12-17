@@ -157,7 +157,7 @@ service : (FluxNetwork) -> {
     "flux_login" : () -> (HttpRequestId);
     "flux_logout" : () -> (HttpRequestId);
     "flux_fetch_balance" : () -> (HttpRequestId);
-    "flux_get_balance" : () -> (opt int32) query;
+    "flux_get_balance" : () -> (opt float32) query;
     "flux_is_logged_in" : () -> (bool) query;
     "flux_calculate_app_price" : () -> (HttpRequestId);
     "flux_register_app" : () -> (HttpRequestId);

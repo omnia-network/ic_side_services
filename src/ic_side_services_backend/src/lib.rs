@@ -106,7 +106,7 @@ fn flux_fetch_balance() -> http_over_ws::HttpRequestId {
 }
 
 #[query]
-fn flux_get_balance() -> Option<i32> {
+fn flux_get_balance() -> Option<f32> {
     flux_api::balance::get_balance()
 }
 
