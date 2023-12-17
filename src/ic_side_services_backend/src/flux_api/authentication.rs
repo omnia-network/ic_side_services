@@ -8,7 +8,7 @@ use crate::{
         CONTENT_TYPE_TEXT_PLAIN_HEADER, DEFAULT_HTTP_REQUEST_TIMEOUT_MS, FLUX_API_BASE_URL,
         FLUX_STATE,
     },
-    http_over_ws::{execute_http_request, HttpMethod, HttpRequestId, HttpResponse},
+    http_over_ws::{execute_http_request, HttpHeader, HttpMethod, HttpRequestId, HttpResponse},
     logger::log,
     sign_with_ecdsa, NETWORK,
 };
@@ -86,7 +86,7 @@ pub fn login() -> HttpRequestId {
 }
 
 pub fn logout() -> HttpRequestId {
-    let zelidauth = FLUX_STATE.with(|b| b.borrow().get_zelid_auth_header_or_trap());
+    let zelidauth = get_zelidauth_or_trap();
     let logout_url = FLUX_API_BASE_URL.join("/id/logoutcurrentsession").unwrap();
 
     async fn logout_cb(res: HttpResponse) {
@@ -108,6 +108,20 @@ pub fn logout() -> HttpRequestId {
         Some(|res| Box::pin(logout_cb(res))),
         Some(DEFAULT_HTTP_REQUEST_TIMEOUT_MS),
     )
+}
+
+pub fn get_zelidauth() -> Option<HttpHeader> {
+    FLUX_STATE.with(|b| b.borrow().get_zelid_auth_header())
+}
+
+pub fn get_zelidauth_or_trap() -> HttpHeader {
+    FLUX_STATE.with(|b| b.borrow().get_zelid_auth_header_or_trap())
+}
+
+pub fn set_zelidauth(zelidauth: Option<String>) {
+    if let Some(zelidauth) = zelidauth {
+        FLUX_STATE.with(|b| b.borrow_mut().set_auth_header(zelidauth));
+    }
 }
 
 pub fn is_logged_in() -> bool {

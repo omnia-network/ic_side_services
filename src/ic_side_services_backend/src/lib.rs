@@ -5,6 +5,7 @@ use ecdsa_api::{
     get_canister_ecdsa_public_key, set_canister_ecdsa_public_key, set_ecdsa_key_name,
     EcdsaPublicKey,
 };
+use flux_api::authentication::{get_zelidauth, set_zelidauth};
 use ic_cdk::{init, post_upgrade, pre_upgrade, query, update};
 
 use flux::FluxNetwork;
@@ -41,19 +42,21 @@ fn init(network: FluxNetwork) {
 fn pre_upgrade() {
     let network = NETWORK.with(|n| n.get());
     let ecdsa_pub_key = get_canister_ecdsa_public_key();
-    ic_cdk::storage::stable_save((network, ecdsa_pub_key))
+    let zelidauth = get_zelidauth().map(|h| h.value);
+
+    ic_cdk::storage::stable_save((network, ecdsa_pub_key, zelidauth))
         .expect("Saving network to stable store must succeed.");
 }
 
 #[post_upgrade]
 fn post_upgrade() {
-    let (network, ecdsa_pub_key) =
-        ic_cdk::storage::stable_restore::<(FluxNetwork, EcdsaPublicKey)>()
+    let (network, ecdsa_pub_key, zelidauth) =
+        ic_cdk::storage::stable_restore::<(FluxNetwork, EcdsaPublicKey, Option<String>)>()
             .expect("Failed to read network from stable memory.");
 
     init(network);
-
     set_canister_ecdsa_public_key(ecdsa_pub_key);
+    set_zelidauth(zelidauth);
 }
 
 /// Sets the ECDSA public key by fetching it from the ECDSA API.
