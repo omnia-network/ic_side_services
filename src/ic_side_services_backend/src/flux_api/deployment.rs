@@ -13,7 +13,7 @@ use crate::{
 };
 
 pub fn calculate_app_price(compose: GetAppPriceRequestComposeInner) -> HttpRequestId {
-    let calculateappprice_url = FLUX_API_BASE_URL.join("/apps/calculateprice").unwrap();
+    let calculateprice_url = FLUX_API_BASE_URL.join("/apps/calculateprice").unwrap();
 
     let body = GetAppPriceRequest {
         version: Some(7),
@@ -51,7 +51,7 @@ pub fn calculate_app_price(compose: GetAppPriceRequestComposeInner) -> HttpReque
     }
 
     execute_http_request(
-        calculateappprice_url,
+        calculateprice_url,
         HttpMethod::POST,
         vec![CONTENT_TYPE_TEXT_PLAIN_HEADER.deref().clone()],
         Some(serde_json::to_string(&body).unwrap()),
