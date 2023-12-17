@@ -2,6 +2,10 @@
 
 set -e
 
+# build the canister before disconnecting clients, so that the deployment is faster
+echo -e "\nBuilding canister..."
+dfx build ic_side_services_backend --check
+
 echo -e "\nDisconnecting all HTTP request executor clients..."
 dfx canister call --ic ic_side_services_backend disconnect_all_clients
 
