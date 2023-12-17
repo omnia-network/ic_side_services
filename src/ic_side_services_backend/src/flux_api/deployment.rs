@@ -73,8 +73,7 @@ pub fn calculate_app_price(deployment_info: DeploymentInfo) -> HttpRequestId {
         vec![CONTENT_TYPE_TEXT_PLAIN_HEADER.deref().clone()],
         Some(serde_json::to_string(&body).unwrap()),
         Some(|res| Box::pin(calculateprice_cb(res))),
-        // this request can take longer to complete due to the sign_with_ecdsa in the callback
-        Some(2 * DEFAULT_HTTP_REQUEST_TIMEOUT_MS),
+        Some(DEFAULT_HTTP_REQUEST_TIMEOUT_MS),
     )
 }
 
