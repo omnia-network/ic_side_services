@@ -13,8 +13,8 @@
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct GetAppsTemporaryMessages200ResponseDataInner {
-    #[serde(rename = "appSpecifications", skip_serializing_if = "Option::is_none")]
-    pub app_specifications: Option<Box<crate::models::Appspecification>>,
+    #[serde(rename = "appSpecification", skip_serializing_if = "Option::is_none")]
+    pub app_specification: Option<Box<crate::models::Appspecification>>,
     /// Message type
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub r#type: Option<String>,
@@ -41,7 +41,7 @@ pub struct GetAppsTemporaryMessages200ResponseDataInner {
 impl GetAppsTemporaryMessages200ResponseDataInner {
     pub fn new() -> GetAppsTemporaryMessages200ResponseDataInner {
         GetAppsTemporaryMessages200ResponseDataInner {
-            app_specifications: None,
+            app_specification: None,
             r#type: None,
             version: None,
             hash: None,

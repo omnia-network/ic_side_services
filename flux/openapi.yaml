@@ -17318,7 +17318,7 @@ paths:
                     items:
                       type: object
                       properties:
-                        appSpecifications:
+                        appSpecification:
                           $ref: '#/components/schemas/appspecification'
                         type:
                           type: string
@@ -17344,7 +17344,7 @@ paths:
               example:
                 status: success
                 data:
-                  - appSpecifications:
+                  - appSpecification:
                       version: 7
                       name: mexcdnxbot
                       description: DNX trading bot
@@ -17437,7 +17437,7 @@ paths:
                         version:
                           type: integer
                           description: Application specification message version, current 1
-                        appSpecifications:
+                        appSpecification:
                           $ref: '#/components/schemas/appspecification'
                         hash:
                           type: string
@@ -17462,7 +17462,7 @@ paths:
                 data:
                   - type: fluxappupdate
                     version: 1
-                    appSpecifications:
+                    appSpecification:
                       version: 7
                       name: HH1u
                       description: HH1u
@@ -17512,7 +17512,7 @@ paths:
                     valueSat: 3000000
                   - type: fluxappregister
                     version: 1
-                    appSpecifications:
+                    appSpecification:
                       version: 4
                       name: StreamrNode1693128754201
                       description: The Streamr Broker Node hosted via the Flux Cloud
@@ -19800,7 +19800,7 @@ paths:
                 version:
                   type: integer
                   description: Message version
-                appSpecifications:
+                appSpecification:
                   $ref: '#/components/schemas/appspecification'
                 timestamp:
                   type: integer
@@ -19812,7 +19812,7 @@ paths:
             example:
               type: fluxappregister
               version: 1
-              appSpecifications:
+              appSpecification:
                 version: 7
                 name: blockbookneurai
                 description: Blockbook for Neurai
@@ -19893,7 +19893,7 @@ paths:
             schema:
               type: object
               properties:
-                appSpecifications:
+                appSpecification:
                   $ref: '#/components/schemas/appspecification'
                 timestamp:
                   type: integer
@@ -19911,7 +19911,7 @@ paths:
             example:
               type: fluxappupdate
               version: 1
-              appSpecifications:
+              appSpecification:
                 version: 7
                 name: blockbookneurai
                 description: Blockbook for Neurai

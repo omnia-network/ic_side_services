@@ -19,8 +19,8 @@ pub struct GetAppsPermanentMessages200ResponseDataInner {
     /// Application specification message version, current 1
     #[serde(rename = "version", skip_serializing_if = "Option::is_none")]
     pub version: Option<i32>,
-    #[serde(rename = "appSpecifications", skip_serializing_if = "Option::is_none")]
-    pub app_specifications: Option<Box<crate::models::Appspecification>>,
+    #[serde(rename = "appSpecification", skip_serializing_if = "Option::is_none")]
+    pub app_specification: Option<Box<crate::models::Appspecification>>,
     /// Message hash
     #[serde(rename = "hash", skip_serializing_if = "Option::is_none")]
     pub hash: Option<String>,
@@ -46,7 +46,7 @@ impl GetAppsPermanentMessages200ResponseDataInner {
         GetAppsPermanentMessages200ResponseDataInner {
             r#type: None,
             version: None,
-            app_specifications: None,
+            app_specification: None,
             hash: None,
             timestamp: None,
             signature: None,

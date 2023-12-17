@@ -19,8 +19,8 @@ pub struct AppregisterRequest {
     /// Message version
     #[serde(rename = "version", skip_serializing_if = "Option::is_none")]
     pub version: Option<i32>,
-    #[serde(rename = "appSpecifications", skip_serializing_if = "Option::is_none")]
-    pub app_specifications: Option<Box<crate::models::Appspecification>>,
+    #[serde(rename = "appSpecification", skip_serializing_if = "Option::is_none")]
+    pub app_specification: Option<Box<crate::models::Appspecification>>,
     /// Current timestamp in epoch/unix
     #[serde(rename = "timestamp", skip_serializing_if = "Option::is_none")]
     pub timestamp: Option<i64>,
@@ -34,7 +34,7 @@ impl AppregisterRequest {
         AppregisterRequest {
             r#type: None,
             version: None,
-            app_specifications: None,
+            app_specification: None,
             timestamp: None,
             signature: None,
         }
