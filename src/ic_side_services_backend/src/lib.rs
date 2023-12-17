@@ -87,18 +87,18 @@ async fn sign_with_ecdsa(message: String, derivation_path: Option<String>) -> St
 }
 
 #[update]
-fn flux_login() {
-    flux_api::authentication::login();
+fn flux_login() -> http_over_ws::HttpRequestId {
+    flux_api::authentication::login()
 }
 
 #[update]
-fn flux_logout() {
-    flux_api::authentication::logout();
+fn flux_logout() -> http_over_ws::HttpRequestId {
+    flux_api::authentication::logout()
 }
 
 #[update]
-fn flux_fetch_balance() {
-    flux_api::balance::fetch_balance();
+fn flux_fetch_balance() -> http_over_ws::HttpRequestId {
+    flux_api::balance::fetch_balance()
 }
 
 #[query]

@@ -8,12 +8,12 @@ use crate::{
         CONTENT_TYPE_TEXT_PLAIN_HEADER, DEFAULT_HTTP_REQUEST_TIMEOUT_MS, FLUX_API_BASE_URL,
         FLUX_STATE,
     },
-    http_over_ws::{execute_http_request, HttpMethod, HttpResponse},
+    http_over_ws::{execute_http_request, HttpMethod, HttpRequestId, HttpResponse},
     logger::log,
     sign_with_ecdsa, NETWORK,
 };
 
-pub fn login() {
+pub fn login() -> HttpRequestId {
     let loginphrase_url = FLUX_API_BASE_URL.join("/id/loginphrase").unwrap();
 
     async fn verifylogin_cb(res: HttpResponse) {
@@ -82,10 +82,10 @@ pub fn login() {
         Some(|res| Box::pin(loginphrase_cb(res))),
         // this request can take longer to complete due to the sign_with_ecdsa in the callback
         Some(2 * DEFAULT_HTTP_REQUEST_TIMEOUT_MS),
-    );
+    )
 }
 
-pub fn logout() {
+pub fn logout() -> HttpRequestId {
     let zelidauth = FLUX_STATE.with(|b| b.borrow().get_zelid_auth_header_or_trap());
     let logout_url = FLUX_API_BASE_URL.join("/id/logoutcurrentsession").unwrap();
 
@@ -107,7 +107,7 @@ pub fn logout() {
         None,
         Some(|res| Box::pin(logout_cb(res))),
         Some(DEFAULT_HTTP_REQUEST_TIMEOUT_MS),
-    );
+    )
 }
 
 pub fn is_logged_in() -> bool {
