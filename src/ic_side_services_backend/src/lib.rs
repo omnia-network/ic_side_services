@@ -1,7 +1,10 @@
 use std::cell::Cell;
 
 use base64::{engine::general_purpose, Engine};
-use ecdsa_api::set_ecdsa_key_name;
+use ecdsa_api::{
+    get_canister_ecdsa_public_key, set_canister_ecdsa_public_key, set_ecdsa_key_name,
+    EcdsaPublicKey,
+};
 use ic_cdk::{init, post_upgrade, pre_upgrade, query, update};
 
 use flux::FluxNetwork;
@@ -21,7 +24,7 @@ thread_local! {
 }
 
 #[init]
-pub fn init(network: FluxNetwork) {
+fn init(network: FluxNetwork) {
     init_ws();
 
     NETWORK.with(|n| n.set(network));
@@ -37,25 +40,29 @@ pub fn init(network: FluxNetwork) {
 #[pre_upgrade]
 fn pre_upgrade() {
     let network = NETWORK.with(|n| n.get());
-    ic_cdk::storage::stable_save((network,)).expect("Saving network to stable store must succeed.");
+    let ecdsa_pub_key = get_canister_ecdsa_public_key();
+    ic_cdk::storage::stable_save((network, ecdsa_pub_key))
+        .expect("Saving network to stable store must succeed.");
 }
 
 #[post_upgrade]
 fn post_upgrade() {
-    let network = ic_cdk::storage::stable_restore::<(FluxNetwork,)>()
-        .expect("Failed to read network from stable memory.")
-        .0;
+    let (network, ecdsa_pub_key) =
+        ic_cdk::storage::stable_restore::<(FluxNetwork, EcdsaPublicKey)>()
+            .expect("Failed to read network from stable memory.");
 
     init(network);
+
+    set_canister_ecdsa_public_key(ecdsa_pub_key);
 }
 
-/// Returns the P2PKH address of this canister at a specific derivation path.
+/// Sets the ECDSA public key by fetching it from the ECDSA API.
 #[update]
-pub async fn set_canister_public_key(derivation_path: Option<String>) {
+async fn set_canister_public_key(derivation_path: Option<String>) {
     let derivation_path = derivation_path
         .map(|dp| vec![dp.into_bytes()])
         .unwrap_or(vec![]);
-    ecdsa_api::set_canister_ecdsa_public_key(derivation_path).await
+    ecdsa_api::fetch_canister_ecdsa_public_key(derivation_path).await;
 }
 
 #[query]
@@ -69,7 +76,7 @@ fn get_addresses() -> (String, String) {
 
 /// Signs a message with ECDSA and returns the base64-encoded signature.
 #[update]
-pub async fn sign_with_ecdsa(message: String, derivation_path: Option<String>) -> String {
+async fn sign_with_ecdsa(message: String, derivation_path: Option<String>) -> String {
     let derivation_path = derivation_path
         .map(|dp| vec![dp.into_bytes()])
         .unwrap_or(vec![]);
@@ -80,22 +87,22 @@ pub async fn sign_with_ecdsa(message: String, derivation_path: Option<String>) -
 }
 
 #[update]
-pub fn flux_login() {
+fn flux_login() {
     flux_api::login();
 }
 
 #[update]
-pub fn flux_logout() {
+fn flux_logout() {
     flux_api::logout();
 }
 
 #[update]
-pub fn flux_fetch_balance() {
+fn flux_fetch_balance() {
     flux_api::fetch_balance();
 }
 
 #[query]
-pub fn flux_get_balance() -> Option<i32> {
+fn flux_get_balance() -> Option<i32> {
     flux_api::get_balance()
 }
 

@@ -9,11 +9,13 @@ use ic_cdk::{
 
 use crate::{flux::FluxNetwork, logger::log};
 
+pub type EcdsaPublicKey = Vec<u8>;
+
 thread_local! {
     // The ECDSA key name.
     /* flexible */ static KEY_NAME: RefCell<String> = RefCell::new(String::from(""));
     /// The ECDSA canister public key, obtained from [ecdsa_api::ecdsa_public_key].
-    /* flexible */ static CANISTER_ECDSA_PUBLIC_KEY: RefCell<Option<Vec<u8>>> = RefCell::new(None);
+    /* flexible */ static CANISTER_ECDSA_PUBLIC_KEY: RefCell<Option<EcdsaPublicKey>> = RefCell::new(None);
 }
 
 pub fn set_ecdsa_key_name(network: FluxNetwork) -> String {
@@ -38,13 +40,13 @@ fn get_ecdsa_key_name() -> String {
 }
 
 /// Fetches the ECDSA public key at the given derivation path.
-pub async fn set_canister_ecdsa_public_key(derivation_path: Vec<Vec<u8>>) {
+pub async fn fetch_canister_ecdsa_public_key(derivation_path: Vec<Vec<u8>>) {
     let key_name = get_ecdsa_key_name();
     // Fetch the public key of the given derivation path.
     let public_key = ecdsa_public_key(derivation_path.clone()).await;
-    CANISTER_ECDSA_PUBLIC_KEY.with(|k| {
-        k.replace(Some(public_key.clone()));
-    });
+
+    // Set the public key in the state.
+    set_canister_ecdsa_public_key(public_key.clone());
 
     log(&format!(
         "set_canister_ecdsa_public_key: key_name: {}, derivation_path: {:?}, public_key: {:?}",
@@ -52,8 +54,15 @@ pub async fn set_canister_ecdsa_public_key(derivation_path: Vec<Vec<u8>>) {
     ));
 }
 
+/// Sets the given ECDSA public key in the state.
+pub fn set_canister_ecdsa_public_key(public_key: EcdsaPublicKey) {
+    CANISTER_ECDSA_PUBLIC_KEY.with(|k| {
+        k.replace(Some(public_key));
+    });
+}
+
 /// Returns the ECDSA public key obtained from [set_canister_ecdsa_public_key].
-pub fn get_canister_ecdsa_public_key() -> Vec<u8> {
+pub fn get_canister_ecdsa_public_key() -> EcdsaPublicKey {
     match CANISTER_ECDSA_PUBLIC_KEY.with(|k| k.borrow().clone()) {
         Some(pk) => pk,
         None => {
@@ -65,7 +74,7 @@ pub fn get_canister_ecdsa_public_key() -> Vec<u8> {
 }
 
 /// Returns the ECDSA public key of this canister at the given derivation path.
-pub async fn ecdsa_public_key(derivation_path: Vec<Vec<u8>>) -> Vec<u8> {
+pub async fn ecdsa_public_key(derivation_path: Vec<Vec<u8>>) -> EcdsaPublicKey {
     let key_name = get_ecdsa_key_name();
     // Retrieve the public key of this canister at the given derivation path
     // from the ECDSA API.

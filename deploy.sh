@@ -5,8 +5,9 @@ set -e
 dfx deploy ic_side_services_backend --ic --argument '(variant { mainnet })'
 
 # make the canister fetch the ECDSA public key and store in its state
-echo -e "\nSetting up ECDSA public key in the canister..."
-dfx canister call --ic ic_side_services_backend set_canister_public_key
+# only needed the first time
+# echo -e "\nSetting up ECDSA public key in the canister..."
+# dfx canister call --ic ic_side_services_backend set_canister_public_key
 
 # log addresses to see if everything went well
 echo -e "\nZelId and ZelCash addresses on canister:"
