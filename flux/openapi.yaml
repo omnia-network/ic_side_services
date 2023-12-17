@@ -19804,6 +19804,7 @@ paths:
                   $ref: '#/components/schemas/appspecification'
                 timestamp:
                   type: integer
+                  format: int64
                   description: Current timestamp in epoch/unix
                 signature:
                   type: object
@@ -19896,6 +19897,7 @@ paths:
                   $ref: '#/components/schemas/appspecification'
                 timestamp:
                   type: integer
+                  format: int64
                   description: Current timestamp in epoch/unix
                 signature:
                   type: object

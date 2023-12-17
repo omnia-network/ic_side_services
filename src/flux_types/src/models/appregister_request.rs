@@ -23,7 +23,7 @@ pub struct AppregisterRequest {
     pub app_specifications: Option<Box<crate::models::Appspecification>>,
     /// Current timestamp in epoch/unix
     #[serde(rename = "timestamp", skip_serializing_if = "Option::is_none")]
-    pub timestamp: Option<i32>,
+    pub timestamp: Option<i64>,
     /// Signature of data message you signed with ZelID.
     #[serde(rename = "signature", skip_serializing_if = "Option::is_none")]
     pub signature: Option<serde_json::Value>,
