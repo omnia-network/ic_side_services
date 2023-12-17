@@ -64,7 +64,7 @@ function openWsConnection() {
           "\nurl:", request.url,
           "\nstatus:", response.status,
           "\nbody bytes:", responseBody.byteLength,
-          // "\nbody:", new TextDecoder().decode(responseBody),
+          "\nbody:", new TextDecoder().decode(responseBody),
         );
 
         _ws.send({
@@ -96,13 +96,26 @@ function openWsConnection() {
   _ws.onclose = (ev) => {
     console.warn("WebSocket disconnected. Reason:", ev.reason);
 
-    // reconnect only if the connection was closed due to an error
-    // TODO: use better logic here, because we may want to reconnect
-    // even if there was no error
-    if (ev.reason !== "ClosedByApplication") {
+    // if there are problems with the WebSocket itself, don't reconnect
+    // this may occur also when connecting to a non-existing canister,
+    // since the ws gateway can't relay the open message and closes the connection
+    if (ev.reason === "Connection ended") {
+      return;
+    }
+
+    // reconnect immediately if the connection was closed due to an error
+    // otherwise wait for some time as it may be a canister upgrade
+    // TODO: use better logic here
+    const reconnectInMs = ev.reason === "ClosedByApplication" ? 45_000 : 0;
+
+    if (reconnectInMs > 0) {
+      console.log("Reconnecting in", reconnectInMs / 1000, "seconds...");
+    }
+
+    setTimeout(() => {
       console.log("Reconnecting...");
       ws = openWsConnection();
-    }
+    }, reconnectInMs);
   };
 
   _ws.onerror = (ev) => {
