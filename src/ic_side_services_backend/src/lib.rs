@@ -88,25 +88,25 @@ async fn sign_with_ecdsa(message: String, derivation_path: Option<String>) -> St
 
 #[update]
 fn flux_login() {
-    flux_api::login();
+    flux_api::authentication::login();
 }
 
 #[update]
 fn flux_logout() {
-    flux_api::logout();
+    flux_api::authentication::logout();
 }
 
 #[update]
 fn flux_fetch_balance() {
-    flux_api::fetch_balance();
+    flux_api::balance::fetch_balance();
 }
 
 #[query]
 fn flux_get_balance() -> Option<i32> {
-    flux_api::get_balance()
+    flux_api::balance::get_balance()
 }
 
 #[query]
 fn flux_is_logged_in() -> bool {
-    flux_api::is_logged_in()
+    flux_api::authentication::is_logged_in()
 }
