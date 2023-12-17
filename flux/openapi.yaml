@@ -16973,7 +16973,7 @@ paths:
                         hdd:
                           type: integer
                           description: Disk usage
-                        enviromentParameters:
+                        environmentParameters:
                           type: array
                           items:
                             type: string
@@ -16999,7 +16999,7 @@ paths:
                     cpu: 0.5
                     ram: 500
                     hdd: 15
-                    enviromentParameters:
+                    environmentParameters:
                       - USERS=1MQetQGLuSmf6QVvYJFwuSR66WrU47G6NG
                       - TEAM=262156
                       - ENABLE_GPU=false
@@ -17090,7 +17090,7 @@ paths:
                         hddbamf:
                           type: integer
                           description: Disk usage
-                        enviromentParameters:
+                        environmentParameters:
                           type: array
                           items:
                             type: string
@@ -17134,7 +17134,7 @@ paths:
                     hddbasic: 15
                     hddsuper: 15
                     hddbamf: 15
-                    enviromentParameters:
+                    environmentParameters:
                       - USERS=1MQetQGLuSmf6QVvYJFwuSR66WrU47G6NG
                       - TEAM=262156
                       - ENABLE_GPU=false
@@ -17960,7 +17960,7 @@ paths:
                         items:
                           type: string
                           description: Domain list
-                      enviromentParameters:
+                      environmentParameters:
                         type: array
                         items:
                           type: string
@@ -21081,7 +21081,7 @@ components:
                 items:
                   type: string
                   description: Domain list
-              enviromentParameters:
+              environmentParameters:
                 type: array
                 items:
                   type: string
@@ -21246,7 +21246,7 @@ components:
                 items:
                   type: string
                   description: Domain list
-              enviromentParameters:
+              environmentParameters:
                 type: array
                 items:
                   type: string

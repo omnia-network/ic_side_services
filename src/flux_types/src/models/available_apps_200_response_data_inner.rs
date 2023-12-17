@@ -70,8 +70,8 @@ pub struct AvailableApps200ResponseDataInner {
     /// Disk usage
     #[serde(rename = "hddbamf", skip_serializing_if = "Option::is_none")]
     pub hddbamf: Option<i32>,
-    #[serde(rename = "enviromentParameters", skip_serializing_if = "Option::is_none")]
-    pub enviroment_parameters: Option<Vec<String>>,
+    #[serde(rename = "environmentParameters", skip_serializing_if = "Option::is_none")]
+    pub environment_parameters: Option<Vec<String>>,
     #[serde(rename = "commands", skip_serializing_if = "Option::is_none")]
     pub commands: Option<Vec<String>>,
     /// Port number
@@ -110,7 +110,7 @@ impl AvailableApps200ResponseDataInner {
             hddbasic: None,
             hddsuper: None,
             hddbamf: None,
-            enviroment_parameters: None,
+            environment_parameters: None,
             commands: None,
             container_port: None,
             container_data: None,

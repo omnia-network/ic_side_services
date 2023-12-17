@@ -27,8 +27,8 @@ pub struct GetAppPriceRequestComposeInner {
     pub ports: Option<Vec<i32>>,
     #[serde(rename = "domains", skip_serializing_if = "Option::is_none")]
     pub domains: Option<Vec<String>>,
-    #[serde(rename = "enviromentParameters", skip_serializing_if = "Option::is_none")]
-    pub enviroment_parameters: Option<Vec<String>>,
+    #[serde(rename = "environmentParameters", skip_serializing_if = "Option::is_none")]
+    pub environment_parameters: Option<Vec<String>>,
     #[serde(rename = "commands", skip_serializing_if = "Option::is_none")]
     pub commands: Option<Vec<String>>,
     #[serde(rename = "containerPorts", skip_serializing_if = "Option::is_none")]
@@ -92,7 +92,7 @@ impl GetAppPriceRequestComposeInner {
             repotag: None,
             ports: None,
             domains: None,
-            enviroment_parameters: None,
+            environment_parameters: None,
             commands: None,
             container_ports: None,
             container_data: None,
