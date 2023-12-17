@@ -11,13 +11,16 @@ use ic_cdk::{
     api::management_canister::http_request::{
         HttpHeader as ApiHttpHeader, HttpResponse as ApiHttpResponse,
     },
-    print, query, trap,
+    print, query, trap, update,
 };
 use ic_cdk_timers::TimerId;
 use ic_websocket_cdk::*;
 use url::Url;
 
-use crate::{logger::log, ws::send_ws_message};
+use crate::{
+    logger::log,
+    ws::{close_client_connection, send_ws_message},
+};
 
 pub type HttpRequestId = u32;
 
@@ -414,4 +417,9 @@ fn get_http_response(request_id: HttpRequestId) -> GetHttpResponseResult {
 #[query]
 fn get_connected_clients() -> ConnectedClients {
     CONNECTED_CLIENTS.with(|clients| clients.borrow().clone())
+}
+
+#[update]
+fn disconnect_client(client_principal: ClientPrincipal) {
+    close_client_connection(client_principal);
 }

@@ -22,6 +22,12 @@ pub fn send_ws_message(client_principal: ClientPrincipal, message: HttpOverWsMes
     }
 }
 
+pub fn close_client_connection(client_principal: ClientPrincipal) {
+    if let Err(close_err) = ic_websocket_cdk::close(client_principal) {
+        log(&format!("ws: Failed to close connection: {}", close_err))
+    }
+}
+
 #[update]
 fn ws_open(args: CanisterWsOpenArguments) -> CanisterWsOpenResult {
     ic_websocket_cdk::ws_open(args)
