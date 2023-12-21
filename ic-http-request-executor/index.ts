@@ -1,6 +1,12 @@
 import IcWebSocket, { createWsConfig, generateRandomIdentity } from "ic-websocket-js";
 import { ic_side_services_backend, canisterId } from "./src/canister/declarations/ic_side_services_backend";
 
+/**
+ * How long to wait before trying to reconnect
+ * in case the WS connection with the canister was manually closed
+ */
+const RECONNECT_AFTER_MS = 45_000;
+
 const icNetworkUrl = process.env.IC_NETWORK_URL as string;
 const gatewayUrl = process.env.IC_WS_GATEWAY_URL as string;
 
@@ -13,18 +19,16 @@ const wsConfig = createWsConfig({
 
 console.log("Canister ID:", canisterId);
 
-let ws = openWsConnection();
-
-function openWsConnection() {
-  const _ws = new IcWebSocket(gatewayUrl, {}, wsConfig);
-  const principal = _ws["_clientKey"].client_principal.toString();
+const openWsConnection = () => {
+  const ws = new IcWebSocket(gatewayUrl, {}, wsConfig);
+  const principal = ws.getPrincipal().toString();
   console.log("WebSocket principal:", principal);
 
-  _ws.onopen = () => {
+  ws.onopen = () => {
     console.log("WebSocket connected with principal", principal);
   };
 
-  _ws.onmessage = async (ev) => {
+  ws.onmessage = async (ev) => {
     const incomingMessage = ev.data;
     // console.log("Message", incomingMessage);
 
@@ -67,7 +71,7 @@ function openWsConnection() {
           "\nbody:", new TextDecoder().decode(responseBody),
         );
 
-        _ws.send({
+        ws.send({
           HttpResponse: [
             requestId,
             {
@@ -84,7 +88,7 @@ function openWsConnection() {
         console.log("Sent response over WebSocket.");
       } catch (e) {
         console.error("http-over-ws: error", e);
-        _ws.send({
+        ws.send({
           Error: [[requestId], String(e)],
         });
       }
@@ -93,7 +97,7 @@ function openWsConnection() {
     }
   };
 
-  _ws.onclose = (ev) => {
+  ws.onclose = (ev) => {
     console.warn("WebSocket disconnected. Reason:", ev.reason);
 
     // if there are problems with the WebSocket itself, don't reconnect
@@ -106,19 +110,21 @@ function openWsConnection() {
     // reconnect immediately if the connection was closed due to an error
     // otherwise wait for some time as it may be a canister upgrade
     // TODO: use better logic here
-    const reconnectInMs = ev.reason === "ClosedByApplication" ? 45_000 : 0;
+    const reconnectAfterMs = ev.reason === "ClosedByApplication" ? RECONNECT_AFTER_MS : 0;
 
-    if (reconnectInMs > 0) {
-      console.log("Reconnecting in", reconnectInMs / 1000, "seconds...");
+    if (reconnectAfterMs > 0) {
+      console.log("Reconnecting in", reconnectAfterMs / 1000, "seconds...");
     }
 
     setTimeout(() => {
       console.log("Reconnecting...");
-      ws = openWsConnection();
-    }, reconnectInMs);
+      openWsConnection();
+    }, reconnectAfterMs);
   };
 
-  _ws.onerror = (ev) => {
+  ws.onerror = (ev) => {
     console.error("WebSocket error:", ev.message);
   };
 };
+
+openWsConnection();
