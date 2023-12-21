@@ -121,7 +121,7 @@ fn tmp_deployment_info() -> flux_api::deployment::DeploymentInfo {
     let mut compose = flux_api::deployment::ComposeSpec::new();
     compose.name = Some("ichttprequestexecutor".to_string());
     compose.description = Some("IC HTTP Request Executor client".to_string());
-    compose.repotag = Some("omniadevs/ic-http-request-executor:v0.0.4".to_string());
+    compose.repotag = Some("omniadevs/ic-http-request-executor:v0.0.5".to_string());
     compose.ports = Some(vec![80]);
     compose.domains = Some(vec![String::new()]);
     compose.environment_parameters = Some(vec![
