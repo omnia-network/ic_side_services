@@ -110,6 +110,19 @@ impl ConnectedClients {
         self.0.insert(client_principal, HashSet::new());
     }
 
+    fn get_client_for_request(&self, request_id: HttpRequestId) -> Option<ClientPrincipal> {
+        let connected_clients_count = self.0.len();
+        if connected_clients_count == 0 {
+            return None;
+        }
+        let chosen_client_index = request_id as usize % connected_clients_count;
+        // chosen_client_index is in [0, connected_clients_count)
+        // where connected_clients_count is the number of clients currently connected.
+        // as no client is removed while executing this method,
+        // the entry at 'chosen_client_index' is guaranteed to exist
+        Some(self.0.iter().nth(chosen_client_index).expect("client must be connected").0.clone())
+    }
+
     fn assign_request_to_client(
         &mut self,
         client_principal: &ClientPrincipal,
@@ -124,7 +137,7 @@ impl ConnectedClients {
     fn assign_request(&mut self, request_id: HttpRequestId) -> Result<ClientPrincipal, String> {
         // pick an arbitrary client
         // TODO: check whether keys are returned in arbitrary order
-        let client_principal = self.0.keys().next()
+        let client_principal = self.get_client_for_request(request_id)
             .ok_or(String::from("no clients connected"))?.clone();
         self.assign_request_to_client(&client_principal, request_id);
         Ok(client_principal)
@@ -460,5 +473,31 @@ mod tests {
         assert!(clients.is_request_assigned_to_client(client_principal, request_id));
         assert!(clients.complete_request_for_client(client_principal, request_id).is_ok());
         assert_eq!(clients.is_request_assigned_to_client(client_principal, request_id), false);
+    }
+
+    #[test]
+    fn should_distribute_requests_among_clients() {
+        let mut clients = ConnectedClients::new();
+
+        let client_principal = Principal::from_text("aaaaa-aa").unwrap();
+        let another_client_principal = Principal::from_text("2chl6-4hpzw-vqaaa-aaaaa-c").unwrap();
+
+        clients.add_client(client_principal);
+        clients.add_client(another_client_principal);
+
+        let request_id = 1;
+        assert!(clients.assign_request(request_id).is_ok());
+
+        let request_id = 2;
+        assert!(clients.assign_request(request_id).is_ok());
+
+        let request_id = 3;
+        assert!(clients.assign_request(request_id).is_ok());
+
+        let request_id = 4;
+        assert!(clients.assign_request(request_id).is_ok());
+
+        assert!(clients.0.get(&client_principal).expect("client must be connected").len() == 2);
+        assert!(clients.0.get(&another_client_principal).expect("client must be connected").len() == 2);
     }
 }
