@@ -99,47 +99,35 @@ impl HttpRequestState {
 }
 
 #[derive(CandidType, Clone, Deserialize)]
-struct ConnectedClients {
-    idle_clients: HashSet<ClientPrincipal>,
-    busy_clients: HashMap<ClientPrincipal, HashSet<HttpRequestId>>,
-}
+struct ConnectedClients(HashMap<ClientPrincipal, HashSet<HttpRequestId>>);
 
 impl ConnectedClients {
     fn new() -> Self {
-        ConnectedClients {
-            idle_clients: HashSet::new(),
-            busy_clients: HashMap::new(),
-        }
+        ConnectedClients(HashMap::new())
     }
 
     fn add_client(&mut self, client_principal: ClientPrincipal) {
-        self.idle_clients.insert(client_principal);
+        self.0.insert(client_principal, HashSet::new());
     }
 
     fn assign_request_to_client(
         &mut self,
-        client_principal: ClientPrincipal,
+        client_principal: &ClientPrincipal,
         request_id: HttpRequestId,
     ) {
-        self.idle_clients.remove(&client_principal);
-        self.busy_clients
-            .entry(client_principal)
-            .or_default()
+        self.0
+            .get_mut(&client_principal)
+            .expect("client must be connected")
             .insert(request_id);
     }
 
-    fn assign_request(&mut self, request_id: HttpRequestId) -> Option<ClientPrincipal> {
-        if let Some(client_principal) = self.idle_clients.iter().next().cloned() {
-            self.assign_request_to_client(client_principal, request_id);
-            Some(client_principal)
-        } else {
-            // pick an arbitrary busy client
-            if let Some(client_principal) = self.busy_clients.keys().next().cloned() {
-                self.assign_request_to_client(client_principal, request_id);
-                return Some(client_principal);
-            }
-            None
-        }
+    fn assign_request(&mut self, request_id: HttpRequestId) -> Result<ClientPrincipal, String> {
+        // pick an arbitrary client
+        // TODO: check whether keys are returned in arbitrary order
+        let client_principal = self.0.keys().next()
+            .ok_or(String::from("no clients connected"))?.clone();
+        self.assign_request_to_client(&client_principal, request_id);
+        Ok(client_principal)
     }
 
     fn is_request_assigned_to_client(
@@ -147,7 +135,7 @@ impl ConnectedClients {
         client_principal: ClientPrincipal,
         request_id: HttpRequestId,
     ) -> bool {
-        self.busy_clients
+        self.0
             .get(&client_principal)
             .map(|set| set.contains(&request_id))
             .unwrap_or(false)
@@ -157,20 +145,18 @@ impl ConnectedClients {
         &mut self,
         client_principal: ClientPrincipal,
         request_id: HttpRequestId,
-    ) {
-        if let Some(busy_client) = self.busy_clients.get_mut(&client_principal) {
-            busy_client.remove(&request_id);
-
-            if busy_client.is_empty() {
-                self.busy_clients.remove(&client_principal);
-                self.idle_clients.insert(client_principal);
-            }
-        };
+    ) -> Result<(), String> {
+        let client = self.0.get_mut(&client_principal)
+            .ok_or(String::from("only requests assigned to connected client can be completed"))?;
+        if !client.remove(&request_id) {
+            return Err(String::from("client has not been assigned the request"));
+        }
+        Ok(())
     }
 
-    fn remove_client(&mut self, client_principal: &ClientPrincipal) {
-        self.idle_clients.remove(client_principal);
-        self.busy_clients.remove(client_principal);
+    fn remove_client(&mut self, client_principal: &ClientPrincipal) -> Result<(), String> {
+        self.0.remove(client_principal).ok_or(String::from("client not connected"))?;
+        Ok(())
     }
 }
 
@@ -323,7 +309,7 @@ pub fn execute_http_request(
         }
     });
 
-    if let Some(assigned_client_principal) =
+    if let Ok(assigned_client_principal) =
         CONNECTED_CLIENTS.with(|clients| clients.borrow_mut().assign_request(request_id))
     {
         let timer_id = match timeout_ms {
@@ -427,13 +413,52 @@ fn disconnect_client(client_principal: ClientPrincipal) {
 #[update]
 pub fn disconnect_all_clients() {
     let clients = CONNECTED_CLIENTS.with(|state| {
-        let mut clients: Vec<ClientPrincipal> =
-            state.borrow().busy_clients.keys().cloned().collect();
-        clients.extend(state.borrow().idle_clients.iter().cloned());
+        let clients: Vec<ClientPrincipal> =
+            state.borrow().0.keys().cloned().collect();
         clients
     });
 
     for client_principal in clients {
         disconnect_client(client_principal);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use candid::Principal;
+
+    use super::*;
+
+    #[test]
+    fn should_add_client_and_assign_request() {
+        let mut clients = ConnectedClients::new();
+        let client_principal = Principal::anonymous();
+        clients.add_client(client_principal);
+        assert_eq!(clients.0.len(), 1);
+
+        let request_id = 1;
+        assert!(clients.assign_request(request_id).is_ok());
+        assert!(clients.0.get(&client_principal).expect("client must be connected").contains(&request_id));
+
+        assert!(clients.is_request_assigned_to_client(client_principal, request_id));
+    }
+
+    #[test]
+    fn should_not_assign_request() {
+        let mut clients = ConnectedClients::new();
+        assert!(clients.assign_request(1).is_err());
+    }
+
+    #[test]
+    fn should_complete_request() {
+        let mut clients = ConnectedClients::new();
+
+        let client_principal = Principal::anonymous();
+        clients.add_client(client_principal);
+        let request_id = 1;
+        assert!(clients.assign_request(request_id).is_ok());
+        assert!(clients.is_request_assigned_to_client(client_principal, request_id));
+        assert!(clients.complete_request_for_client(client_principal, request_id).is_ok());
+        assert_eq!(clients.is_request_assigned_to_client(client_principal, request_id), false);
     }
 }
