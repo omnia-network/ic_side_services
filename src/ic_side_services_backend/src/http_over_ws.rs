@@ -229,7 +229,9 @@ pub fn on_message(args: OnMessageCallbackArgs) {
 
 pub fn on_close(args: OnCloseCallbackArgs) {
     CONNECTED_CLIENTS.with(|clients| {
-        clients.borrow_mut().remove_client(&args.client_principal);
+        if let Err(e) = clients.borrow_mut().remove_client(&args.client_principal) {
+            log(&e);
+        };
     });
 
     print(&format!(
@@ -299,11 +301,13 @@ fn http_request_timeout(client_principal: ClientPrincipal, request_id: HttpReque
             });
     });
 
-    CONNECTED_CLIENTS.with(|clients| {
+    if let Err(e) = CONNECTED_CLIENTS.with(|clients| {
         clients
             .borrow_mut()
-            .complete_request_for_client(client_principal, request_id);
-    })
+            .complete_request_for_client(client_principal, request_id)
+    }) {
+        log(&e);
+    }
 }
 
 pub fn execute_http_request(
@@ -321,13 +325,7 @@ pub fn execute_http_request(
         body: body.map(|b| b.into_bytes()),
     };
 
-    let request_id = HTTP_REQUESTS.with(|http_requests| {
-        if let Some((r, _)) = http_requests.borrow().last_key_value() {
-            r + 1
-        } else {
-            1
-        }
-    });
+    let request_id = HTTP_REQUESTS.with(|http_requests| http_requests.borrow().len() + 1) as u32;
 
     if let Ok(assigned_client_principal) =
         CONNECTED_CLIENTS.with(|clients| clients.borrow_mut().assign_request(request_id))
