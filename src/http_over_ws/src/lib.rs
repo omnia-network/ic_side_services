@@ -195,12 +195,12 @@ pub fn on_message(args: OnMessageCallbackArgs) {
 
     match incoming_msg {
         HttpOverWsMessage::HttpRequest(_, _) => {
-            ic_websocket_cdk::send(
+            send_ws_message(
                 client_principal,
                 HttpOverWsMessage::Error(
                     None,
                     String::from("Clients are not allowed to send HTTP requests"),
-                ).to_bytes(),
+                ),
             );
         }
         HttpOverWsMessage::HttpResponse(request_id, response) => {
@@ -351,9 +351,9 @@ pub fn execute_http_request(
         });
 
         #[cfg(not(test))]
-        ic_websocket_cdk::send(
+        send_ws_message(
             assigned_client_principal,
-            HttpOverWsMessage::HttpRequest(request_id, http_request).to_bytes(),
+            HttpOverWsMessage::HttpRequest(request_id, http_request),
         );
     } else {
         #[cfg(not(test))]
