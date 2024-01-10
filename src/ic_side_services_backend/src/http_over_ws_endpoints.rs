@@ -1,11 +1,9 @@
 use candid::{CandidType, Deserialize};
-use http_over_ws::{HttpMethod, HttpHeader, HttpRequestId, HTTP_REQUESTS, HttpRequestFailureReason, CONNECTED_CLIENTS, ConnectedClients};
+use http_over_ws::{HttpMethod, HttpHeader, HttpRequestId, HTTP_REQUESTS, HttpRequestFailureReason, CONNECTED_CLIENTS, ConnectedClients, close_client_connection};
 use ic_cdk::{
     query, update,
 };
 use ic_websocket_cdk::*;
-
-use crate::ws::close_client_connection;
 
 #[derive(CandidType, Deserialize)]
 struct PrettyHttpRequest {

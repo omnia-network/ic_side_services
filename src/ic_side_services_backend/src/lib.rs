@@ -10,14 +10,13 @@ use ic_cdk::{init, post_upgrade, pre_upgrade, query, update};
 
 use flux::FluxNetwork;
 use logger::log;
-use ws::init_ws;
+use http_over_ws::init_ws;
 
 mod ecdsa_api;
 mod flux;
 mod flux_api;
 mod http_over_ws_endpoints;
 mod utils;
-mod ws;
 
 thread_local! {
     /// The Flux network to connect to.
