@@ -1,0 +1,5 @@
+service : () -> {
+  "execute_http_request" : () -> (nat32);
+  "handle_http_response" : (nat32) -> ();
+  "get_logs" : () -> (vec record { text; text }) query;
+};

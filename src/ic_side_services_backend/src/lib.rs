@@ -9,7 +9,7 @@ use flux_api::authentication::{get_zelidauth, set_zelidauth};
 use ic_cdk::{init, post_upgrade, pre_upgrade, query, update};
 
 use flux::FluxNetwork;
-use logger::log;
+use logger::{log, Logs};
 use http_over_ws::init_ws;
 
 mod ecdsa_api;
@@ -158,4 +158,9 @@ async fn flux_register_app() -> http_over_ws::HttpRequestId {
 #[update]
 fn flux_get_deployment_information() -> http_over_ws::HttpRequestId {
     flux_api::deployment::fetch_deployment_information()
+}
+
+#[query]
+fn get_logs() -> Logs {
+    logger::get_logs()
 }

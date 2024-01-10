@@ -753,8 +753,7 @@ dependencies = [
 [[package]]
 name = "ic-websocket-cdk"
 version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2996bf5fd813d6f21c2a766e0f249a4c482c266d755c5e8dbb97031c4605e647"
+source = "git+https://github.com/omnia-network/ic-websocket-cdk-rs/?rev=0cfe15271fdfb6f6e0f0c05883172dcbd5f00bb4#0cfe15271fdfb6f6e0f0c05883172dcbd5f00bb4"
 dependencies = [
  "base64 0.21.5",
  "candid",
@@ -1723,6 +1722,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff1bc3d3f05aff0403e8ac0d92ced918ec05b666a43f83297ccef5bea8a3d449"
 dependencies = [
  "winapi-util",
+]
+
+[[package]]
+name = "test_canister"
+version = "0.1.0"
+dependencies = [
+ "candid",
+ "http_over_ws",
+ "ic-cdk",
+ "ic-cdk-macros",
+ "ic-websocket-cdk",
+ "logger",
+ "serde",
+ "serde_cbor",
+ "url",
 ]
 
 [[package]]

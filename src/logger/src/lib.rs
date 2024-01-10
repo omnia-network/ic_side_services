@@ -1,11 +1,11 @@
 use std::{cell::RefCell, time::Duration};
 
-use ic_cdk::{api::time, query};
+use ic_cdk::api::time;
 
 type LogDateTime = String;
 type LogMessage = String;
 
-type Logs = Vec<(LogDateTime, LogMessage)>;
+pub type Logs = Vec<(LogDateTime, LogMessage)>;
 
 struct Logger {
     logs: Logs,
@@ -28,8 +28,7 @@ thread_local! {
   /* flexible */ static LOGGER: RefCell<Logger> = RefCell::new(Logger::new());
 }
 
-#[query]
-fn get_logs() -> Logs {
+pub fn get_logs() -> Logs {
     LOGGER.with(|logger| logger.borrow().logs.clone())
 }
 

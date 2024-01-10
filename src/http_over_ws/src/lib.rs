@@ -11,7 +11,7 @@ use ic_cdk::{
     api::management_canister::http_request::{
         HttpHeader as ApiHttpHeader, HttpResponse as ApiHttpResponse,
     },
-    print, query, trap, update,
+    query, trap, update,
 };
 use ic_cdk_timers::TimerId;
 use ic_websocket_cdk::{ClientPrincipal, OnMessageCallbackArgs, OnOpenCallbackArgs, OnCloseCallbackArgs, CanisterWsOpenResult, CanisterWsOpenArguments, CanisterWsCloseResult, CanisterWsCloseArguments, WsInitParams, WsHandlers, CanisterWsMessageArguments, CanisterWsMessageResult, CanisterWsGetMessagesArguments, CanisterWsGetMessagesResult};
@@ -32,7 +32,7 @@ pub enum HttpMethod {
 pub type HttpHeader = ApiHttpHeader;
 
 #[derive(CandidType, Clone, Debug, Deserialize)]
-struct HttpRequest {
+pub struct HttpRequest {
     url: String,
     method: HttpMethod,
     headers: Vec<HttpHeader>,
@@ -43,7 +43,7 @@ pub type HttpResponse = ApiHttpResponse;
 pub type HttpCallback = fn(HttpResponse) -> Pin<Box<dyn Future<Output = ()>>>;
 
 #[derive(CandidType, Debug, Deserialize)]
-enum HttpOverWsMessage {
+pub enum HttpOverWsMessage {
     HttpRequest(HttpRequestId, HttpRequest),
     HttpResponse(HttpRequestId, HttpResponse),
     Error(Option<HttpRequestId>, String),
@@ -182,6 +182,7 @@ pub fn on_open(args: OnOpenCallbackArgs) {
     CONNECTED_CLIENTS.with(|clients| {
         clients.borrow_mut().add_client(args.client_principal);
     });
+    log(&format!("http_over_ws: Client {} connected", args.client_principal))
 }
 
 pub fn on_message(args: OnMessageCallbackArgs) {
@@ -234,7 +235,7 @@ pub fn on_close(args: OnCloseCallbackArgs) {
         };
     });
 
-    print(&format!(
+    log(&format!(
         "http_over_ws: Client {} disconnected",
         args.client_principal
     ))
@@ -335,37 +336,39 @@ pub fn execute_http_request(
 
     let request_id = HTTP_REQUESTS.with(|http_requests| http_requests.borrow().len() + 1) as u32;
 
-    if let Ok(assigned_client_principal) =
-        CONNECTED_CLIENTS.with(|clients| clients.borrow_mut().assign_request(request_id))
-    {
-        #[cfg(not(test))]
-        let timer_id = match timeout_ms {
-            Some(millis) => Some(ic_cdk_timers::set_timer(
-                Duration::from_millis(millis),
-                move || {
-                    http_request_timeout(assigned_client_principal, request_id);
-                },
-            )),
-            None => None,
-        };
-        #[cfg(test)]
-        let timer_id = None;
-
-        HTTP_REQUESTS.with(|http_requests| {
-            http_requests.borrow_mut().insert(
-                request_id,
-                HttpRequestState::new(http_request.clone(), callback, timer_id),
+    match CONNECTED_CLIENTS.with(|clients| clients.borrow_mut().assign_request(request_id)) {
+        Ok(assigned_client_principal) => {
+            #[cfg(not(test))]
+            let timer_id = match timeout_ms {
+                Some(millis) => Some(ic_cdk_timers::set_timer(
+                    Duration::from_millis(millis),
+                    move || {
+                        http_request_timeout(assigned_client_principal, request_id);
+                    },
+                )),
+                None => None,
+            };
+            #[cfg(test)]
+            let timer_id = None;
+    
+            HTTP_REQUESTS.with(|http_requests| {
+                http_requests.borrow_mut().insert(
+                    request_id,
+                    HttpRequestState::new(http_request.clone(), callback, timer_id),
+                );
+            });
+    
+            #[cfg(not(test))]
+            send_ws_message(
+                assigned_client_principal,
+                HttpOverWsMessage::HttpRequest(request_id, http_request),
             );
-        });
-
-        #[cfg(not(test))]
-        send_ws_message(
-            assigned_client_principal,
-            HttpOverWsMessage::HttpRequest(request_id, http_request),
-        );
-    } else {
-        #[cfg(not(test))]
-        trap("No available HTTP clients");
+        }
+        Err(e) => {
+            log(&e);
+            #[cfg(not(test))]
+            trap("No available HTTP clients");
+        }
     }
 
     request_id

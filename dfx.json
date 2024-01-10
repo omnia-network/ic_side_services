@@ -7,6 +7,14 @@
       "declarations": {
         "output": "./ic-http-request-executor/src/canister/declarations/ic_side_services_backend"
       }
+    },
+    "test_canister": {
+      "candid": "src/test_canister/test_canister.did",
+      "package": "test_canister",
+      "type": "rust",
+      "declarations": {
+        "output": "./ic-http-request-executor/src/canister/declarations/test_canister"
+      }
     }
   },
   "defaults": {
@@ -17,5 +25,5 @@
   },
   "output_env_file": "ic-http-request-executor/.env",
   "version": 1,
-  "dfx": "0.15.2"
+  "dfx": "0.15.0"
 }
