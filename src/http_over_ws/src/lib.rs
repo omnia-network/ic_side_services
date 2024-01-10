@@ -14,7 +14,7 @@ use ic_cdk::{
     print, query, trap, update,
 };
 use ic_cdk_timers::TimerId;
-use ic_websocket_cdk::*;
+use ic_websocket_cdk::{ClientPrincipal, OnMessageCallbackArgs, OnOpenCallbackArgs, OnCloseCallbackArgs, CanisterWsOpenResult, CanisterWsOpenArguments, CanisterWsCloseResult, CanisterWsCloseArguments, WsInitParams, WsHandlers, CanisterWsMessageArguments, CanisterWsMessageResult, CanisterWsGetMessagesArguments, CanisterWsGetMessagesResult};
 use logger::log;
 use url::Url;
 
@@ -29,21 +29,21 @@ pub enum HttpMethod {
     DELETE,
 }
 
-pub type HttpHeader = ApiHttpHeader;
+type HttpHeader = ApiHttpHeader;
 
 #[derive(CandidType, Clone, Debug, Deserialize)]
-pub struct HttpRequest {
-    pub url: String,
-    pub method: HttpMethod,
-    pub headers: Vec<HttpHeader>,
-    pub body: Option<Vec<u8>>,
+struct HttpRequest {
+    url: String,
+    method: HttpMethod,
+    headers: Vec<HttpHeader>,
+    body: Option<Vec<u8>>,
 }
 
 pub type HttpResponse = ApiHttpResponse;
 pub type HttpCallback = fn(HttpResponse) -> Pin<Box<dyn Future<Output = ()>>>;
 
 #[derive(CandidType, Debug, Deserialize)]
-pub enum HttpOverWsMessage {
+enum HttpOverWsMessage {
     HttpRequest(HttpRequestId, HttpRequest),
     HttpResponse(HttpRequestId, HttpResponse),
     Error(Option<HttpRequestId>, String),
@@ -60,7 +60,7 @@ impl HttpOverWsMessage {
 }
 
 #[derive(CandidType, Clone, Deserialize)]
-pub enum HttpRequestFailureReason {
+enum HttpRequestFailureReason {
     Timeout,
     ErrorFromClient(String),
     /// Used when retrieving the request from the state
@@ -70,12 +70,12 @@ pub enum HttpRequestFailureReason {
 }
 
 #[derive(Clone)]
-pub struct HttpRequestState {
-    pub request: HttpRequest,
-    pub response: Option<HttpResponse>,
-    pub callback: Option<HttpCallback>,
-    pub timer_id: Option<TimerId>,
-    pub failure_reason: Option<HttpRequestFailureReason>,
+struct HttpRequestState {
+    request: HttpRequest,
+    response: Option<HttpResponse>,
+    callback: Option<HttpCallback>,
+    timer_id: Option<TimerId>,
+    failure_reason: Option<HttpRequestFailureReason>,
 }
 
 impl HttpRequestState {
@@ -174,8 +174,8 @@ impl ConnectedClients {
 }
 
 thread_local! {
-    /* flexible */ pub static HTTP_REQUESTS: RefCell<BTreeMap<HttpRequestId, HttpRequestState>> = RefCell::new(BTreeMap::new());
-    /* flexible */ pub static CONNECTED_CLIENTS: RefCell<ConnectedClients> = RefCell::new(ConnectedClients::new());
+    /* flexible */ static HTTP_REQUESTS: RefCell<BTreeMap<HttpRequestId, HttpRequestState>> = RefCell::new(BTreeMap::new());
+    /* flexible */ static CONNECTED_CLIENTS: RefCell<ConnectedClients> = RefCell::new(ConnectedClients::new());
 }
 
 pub fn on_open(args: OnOpenCallbackArgs) {
@@ -238,6 +238,14 @@ pub fn on_close(args: OnCloseCallbackArgs) {
         "http_over_ws: Client {} disconnected",
         args.client_principal
     ))
+}
+
+pub fn get_connected_clients() -> ConnectedClients {
+    CONNECTED_CLIENTS.with(|clients| clients.borrow().clone())
+}
+
+pub fn get_connected_client_principals() -> Vec<Principal> {
+    get_connected_clients().0.keys().cloned().collect::<Vec<_>>()
 }
 
 fn handle_http_response(client_principal: Principal, request_id: HttpRequestId, response: HttpResponse) -> Result<(), String> {
@@ -364,15 +372,14 @@ pub fn execute_http_request(
 }
 
 #[derive(CandidType, Deserialize)]
-struct PrettyHttpRequest {
+pub struct PrettyHttpRequest {
     url: String,
     method: HttpMethod,
     headers: Vec<HttpHeader>,
     body: Option<String>,
 }
 
-#[query]
-fn get_http_request(request_id: HttpRequestId) -> Option<PrettyHttpRequest> {
+pub fn get_http_request(request_id: HttpRequestId) -> Option<PrettyHttpRequest> {
     HTTP_REQUESTS.with(|http_requests| {
         http_requests
             .borrow()
@@ -390,6 +397,39 @@ fn get_http_request(request_id: HttpRequestId) -> Option<PrettyHttpRequest> {
     })
 }
 
+#[derive(CandidType, Deserialize)]
+pub struct PrettyHttpResponse {
+    status: candid::Nat,
+    headers: Vec<HttpHeader>,
+    body: String,
+}
+
+pub type GetHttpResponseResult = Result<PrettyHttpResponse, HttpRequestFailureReason>;
+
+
+pub fn get_http_response(request_id: HttpRequestId) -> GetHttpResponseResult {
+    HTTP_REQUESTS.with(|http_requests| {
+        http_requests
+            .borrow()
+            .get(&request_id)
+            .ok_or(HttpRequestFailureReason::NotFound)
+            .map(|r| {
+                r.response
+                    .as_ref()
+                    .ok_or(
+                        r.failure_reason
+                            .clone()
+                            .unwrap_or(HttpRequestFailureReason::Unknown),
+                    )
+                    .map(|res| PrettyHttpResponse {
+                        status: res.status.clone(),
+                        headers: res.headers.clone(),
+                        body: String::from_utf8_lossy(&res.body).to_string(),
+                    })
+            })?
+    })
+}
+
 pub fn init_ws() {
     let params = WsInitParams::new(WsHandlers {
         on_open: Some(on_open),
@@ -400,7 +440,7 @@ pub fn init_ws() {
     ic_websocket_cdk::init(params);
 }
 
-pub fn send_ws_message(client_principal: ClientPrincipal, message: HttpOverWsMessage) {
+fn send_ws_message(client_principal: ClientPrincipal, message: HttpOverWsMessage) {
     if let Err(send_err) = ic_websocket_cdk::send(client_principal, message.to_bytes()) {
         log(&format!("ws: Failed to send message: {}", send_err))
     }
