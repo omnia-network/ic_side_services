@@ -8,10 +8,11 @@ use crate::{
         CONTENT_TYPE_TEXT_PLAIN_HEADER, DEFAULT_HTTP_REQUEST_TIMEOUT_MS, FLUX_API_BASE_URL,
         FLUX_STATE,
     },
-    http_over_ws::{execute_http_request, HttpHeader, HttpMethod, HttpRequestId, HttpResponse},
-    logger::log,
     sign_with_ecdsa, NETWORK,
 };
+
+use http_over_ws::{execute_http_request, HttpHeader, HttpMethod, HttpRequestId, HttpResponse};
+use logger::log;
 
 pub fn login() -> HttpRequestId {
     let loginphrase_url = FLUX_API_BASE_URL.join("/id/loginphrase").unwrap();

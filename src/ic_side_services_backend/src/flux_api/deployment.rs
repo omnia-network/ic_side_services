@@ -9,10 +9,11 @@ use crate::{
         authentication::get_zelidauth_or_trap, CONTENT_TYPE_TEXT_PLAIN_HEADER,
         DEFAULT_HTTP_REQUEST_TIMEOUT_MS, FLUX_API_BASE_URL,
     },
-    http_over_ws::{execute_http_request, HttpMethod, HttpRequestId, HttpResponse},
-    logger::log,
     sign_with_ecdsa, utils, NETWORK,
 };
+
+use http_over_ws::{execute_http_request, HttpMethod, HttpRequestId, HttpResponse};
+use logger::log;
 
 pub type ComposeSpec = GetAppPriceRequestComposeInner;
 

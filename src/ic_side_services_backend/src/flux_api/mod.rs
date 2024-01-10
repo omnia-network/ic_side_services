@@ -5,7 +5,8 @@ use ic_cdk::trap;
 use lazy_static::lazy_static;
 use url::Url;
 
-use crate::{http_over_ws::HttpHeader, logger::log};
+use http_over_ws::HttpHeader;
+use logger::log;
 
 pub mod authentication;
 pub mod balance;

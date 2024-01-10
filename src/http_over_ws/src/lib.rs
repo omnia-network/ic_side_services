@@ -15,12 +15,8 @@ use ic_cdk::{
 };
 use ic_cdk_timers::TimerId;
 use ic_websocket_cdk::*;
+use logger::log;
 use url::Url;
-
-use crate::{
-    logger::log,
-    ws::{close_client_connection, send_ws_message},
-};
 
 pub type HttpRequestId = u32;
 
@@ -37,10 +33,10 @@ pub type HttpHeader = ApiHttpHeader;
 
 #[derive(CandidType, Clone, Debug, Deserialize)]
 pub struct HttpRequest {
-    url: String,
-    method: HttpMethod,
-    headers: Vec<HttpHeader>,
-    body: Option<Vec<u8>>,
+    pub url: String,
+    pub method: HttpMethod,
+    pub headers: Vec<HttpHeader>,
+    pub body: Option<Vec<u8>>,
 }
 
 pub type HttpResponse = ApiHttpResponse;
@@ -64,7 +60,7 @@ impl HttpOverWsMessage {
 }
 
 #[derive(CandidType, Clone, Deserialize)]
-enum HttpRequestFailureReason {
+pub enum HttpRequestFailureReason {
     Timeout,
     ErrorFromClient(String),
     /// Used when retrieving the request from the state
@@ -74,12 +70,12 @@ enum HttpRequestFailureReason {
 }
 
 #[derive(Clone)]
-struct HttpRequestState {
-    request: HttpRequest,
-    response: Option<HttpResponse>,
-    callback: Option<HttpCallback>,
-    timer_id: Option<TimerId>,
-    failure_reason: Option<HttpRequestFailureReason>,
+pub struct HttpRequestState {
+    pub request: HttpRequest,
+    pub response: Option<HttpResponse>,
+    pub callback: Option<HttpCallback>,
+    pub timer_id: Option<TimerId>,
+    pub failure_reason: Option<HttpRequestFailureReason>,
 }
 
 impl HttpRequestState {
@@ -99,18 +95,18 @@ impl HttpRequestState {
 }
 
 #[derive(CandidType, Clone, Deserialize)]
-struct ConnectedClients(HashMap<ClientPrincipal, HashSet<HttpRequestId>>);
+pub struct ConnectedClients(HashMap<ClientPrincipal, HashSet<HttpRequestId>>);
 
 impl ConnectedClients {
-    fn new() -> Self {
+    pub fn new() -> Self {
         ConnectedClients(HashMap::new())
     }
 
-    fn add_client(&mut self, client_principal: ClientPrincipal) {
+    pub fn add_client(&mut self, client_principal: ClientPrincipal) {
         self.0.insert(client_principal, HashSet::new());
     }
 
-    fn get_client_for_request(&self, request_id: HttpRequestId) -> Option<ClientPrincipal> {
+    pub fn get_client_for_request(&self, request_id: HttpRequestId) -> Option<ClientPrincipal> {
         let connected_clients_count = self.0.len();
         if connected_clients_count == 0 {
             return None;
@@ -123,7 +119,11 @@ impl ConnectedClients {
         Some(self.0.iter().nth(chosen_client_index).expect("client must be connected").0.clone())
     }
 
-    fn assign_request_to_client(
+    pub fn get_connected_clients(&self) -> Vec<ClientPrincipal> {
+        self.0.keys().cloned().collect()
+    }
+
+    pub fn assign_request_to_client(
         &mut self,
         client_principal: &ClientPrincipal,
         request_id: HttpRequestId,
@@ -134,7 +134,7 @@ impl ConnectedClients {
             .insert(request_id);
     }
 
-    fn assign_request(&mut self, request_id: HttpRequestId) -> Result<ClientPrincipal, String> {
+    pub fn assign_request(&mut self, request_id: HttpRequestId) -> Result<ClientPrincipal, String> {
         // pick an arbitrary client
         // TODO: check whether keys are returned in arbitrary order
         let client_principal = self.get_client_for_request(request_id)
@@ -143,7 +143,7 @@ impl ConnectedClients {
         Ok(client_principal)
     }
 
-    fn is_request_assigned_to_client(
+    pub fn is_request_assigned_to_client(
         &self,
         client_principal: ClientPrincipal,
         request_id: HttpRequestId,
@@ -154,7 +154,7 @@ impl ConnectedClients {
             .unwrap_or(false)
     }
 
-    fn complete_request_for_client(
+    pub fn complete_request_for_client(
         &mut self,
         client_principal: ClientPrincipal,
         request_id: HttpRequestId,
@@ -167,15 +167,15 @@ impl ConnectedClients {
         Ok(())
     }
 
-    fn remove_client(&mut self, client_principal: &ClientPrincipal) -> Result<(), String> {
+    pub fn remove_client(&mut self, client_principal: &ClientPrincipal) -> Result<(), String> {
         self.0.remove(client_principal).ok_or(String::from("client not connected"))?;
         Ok(())
     }
 }
 
 thread_local! {
-    /* flexible */ static HTTP_REQUESTS: RefCell<BTreeMap<HttpRequestId, HttpRequestState>> = RefCell::new(BTreeMap::new());
-    /* flexible */ static CONNECTED_CLIENTS: RefCell<ConnectedClients> = RefCell::new(ConnectedClients::new());
+    /* flexible */ pub static HTTP_REQUESTS: RefCell<BTreeMap<HttpRequestId, HttpRequestState>> = RefCell::new(BTreeMap::new());
+    /* flexible */ pub static CONNECTED_CLIENTS: RefCell<ConnectedClients> = RefCell::new(ConnectedClients::new());
 }
 
 pub fn on_open(args: OnOpenCallbackArgs) {
@@ -195,12 +195,12 @@ pub fn on_message(args: OnMessageCallbackArgs) {
 
     match incoming_msg {
         HttpOverWsMessage::HttpRequest(_, _) => {
-            send_ws_message(
+            ic_websocket_cdk::send(
                 client_principal,
                 HttpOverWsMessage::Error(
                     None,
                     String::from("Clients are not allowed to send HTTP requests"),
-                ),
+                ).to_bytes(),
             );
         }
         HttpOverWsMessage::HttpResponse(request_id, response) => {
@@ -351,9 +351,9 @@ pub fn execute_http_request(
         });
 
         #[cfg(not(test))]
-        send_ws_message(
+        ic_websocket_cdk::send(
             assigned_client_principal,
-            HttpOverWsMessage::HttpRequest(request_id, http_request),
+            HttpOverWsMessage::HttpRequest(request_id, http_request).to_bytes(),
         );
     } else {
         #[cfg(not(test))]
@@ -388,62 +388,6 @@ fn get_http_request(request_id: HttpRequestId) -> Option<PrettyHttpRequest> {
                     .map(|b| String::from_utf8_lossy(b).to_string()),
             })
     })
-}
-
-#[derive(CandidType, Deserialize)]
-struct PrettyHttpResponse {
-    status: candid::Nat,
-    headers: Vec<HttpHeader>,
-    body: String,
-}
-
-type GetHttpResponseResult = Result<PrettyHttpResponse, HttpRequestFailureReason>;
-
-#[query]
-fn get_http_response(request_id: HttpRequestId) -> GetHttpResponseResult {
-    HTTP_REQUESTS.with(|http_requests| {
-        http_requests
-            .borrow()
-            .get(&request_id)
-            .ok_or(HttpRequestFailureReason::NotFound)
-            .map(|r| {
-                r.response
-                    .as_ref()
-                    .ok_or(
-                        r.failure_reason
-                            .clone()
-                            .unwrap_or(HttpRequestFailureReason::Unknown),
-                    )
-                    .map(|res| PrettyHttpResponse {
-                        status: res.status.clone(),
-                        headers: res.headers.clone(),
-                        body: String::from_utf8_lossy(&res.body).to_string(),
-                    })
-            })?
-    })
-}
-
-#[query]
-fn get_connected_clients() -> ConnectedClients {
-    CONNECTED_CLIENTS.with(|clients| clients.borrow().clone())
-}
-
-#[update]
-fn disconnect_client(client_principal: ClientPrincipal) {
-    close_client_connection(client_principal);
-}
-
-#[update]
-pub fn disconnect_all_clients() {
-    let clients = CONNECTED_CLIENTS.with(|state| {
-        let clients: Vec<ClientPrincipal> =
-            state.borrow().0.keys().cloned().collect();
-        clients
-    });
-
-    for client_principal in clients {
-        disconnect_client(client_principal);
-    }
 }
 
 #[cfg(test)]

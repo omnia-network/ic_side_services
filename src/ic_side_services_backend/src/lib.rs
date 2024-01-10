@@ -15,8 +15,7 @@ use ws::init_ws;
 mod ecdsa_api;
 mod flux;
 mod flux_api;
-mod http_over_ws;
-mod logger;
+mod http_over_ws_endpoints;
 mod utils;
 mod ws;
 

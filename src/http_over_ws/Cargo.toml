@@ -1,12 +1,8 @@
 [package]
-name = "ic_side_services_backend"
-version = "0.1.0"
+name = "http_over_ws"
+version = "0.0.1"
 edition = { workspace = true }
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[lib]
-crate-type = ["cdylib"]
 
 [dependencies]
 base64 = "0.21.5"
@@ -22,9 +18,8 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = "0.10.8"
 url = "2.5.0"
-flux_types = { path = "../flux_types" }
-http_over_ws = { path = "../http_over_ws" }
 logger = { path = "../logger" }
 
-[dev-dependencies]
-pocket-ic = "2.0.1"
+
+
+

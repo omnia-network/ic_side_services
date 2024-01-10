@@ -1,10 +1,11 @@
 use crate::{
     flux,
     flux_api::{DEFAULT_HTTP_REQUEST_TIMEOUT_MS, FLUX_API_BASE_URL, FLUX_STATE},
-    http_over_ws::{execute_http_request, HttpMethod, HttpRequestId, HttpResponse},
-    logger::log,
     NETWORK,
 };
+
+use http_over_ws::{execute_http_request, HttpMethod, HttpRequestId, HttpResponse};
+use logger::log;
 
 pub fn fetch_balance() -> HttpRequestId {
     let mut balance_url = FLUX_API_BASE_URL.join("/explorer/balance").unwrap();

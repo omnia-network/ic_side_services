@@ -1,10 +1,8 @@
 use ic_cdk::{query, update};
 use ic_websocket_cdk::*;
 
-use crate::{
-    http_over_ws::{on_close, on_message, on_open, HttpOverWsMessage},
-    logger::log,
-};
+use http_over_ws::{on_close, on_message, on_open, HttpOverWsMessage};
+use logger::log;
 
 pub fn init_ws() {
     let params = WsInitParams::new(WsHandlers {

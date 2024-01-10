@@ -6,8 +6,9 @@ use ic_cdk::{
     },
     trap,
 };
+use logger::log;
 
-use crate::{flux::FluxNetwork, logger::log};
+use crate::flux::FluxNetwork;
 
 pub type EcdsaPublicKey = Vec<u8>;
 
