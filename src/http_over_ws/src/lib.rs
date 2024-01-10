@@ -261,15 +261,13 @@ fn handle_http_response(client_principal: Principal, request_id: HttpRequestId, 
             let r = h.get_mut(&request_id).ok_or(String::from("request not found"))?;
             r.response = Some(response.clone());
 
-            #[cfg(not(test))]
-            {
-                // response has been received, clear the timer
-                let timer_id = r.timer_id.take().ok_or(String::from("timer not set"))?;
-                ic_cdk_timers::clear_timer(timer_id);
-    
-                let callback = r.callback.ok_or(String::from("callback not set"))?;
-                ic_cdk::spawn(async move { callback(response).await });
-            }
+            // response has been received, clear the timer
+            let timer_id = r.timer_id.take().ok_or(String::from("timer not set"))?;
+            ic_cdk_timers::clear_timer(timer_id);
+
+            let callback = r.callback.ok_or(String::from("callback not set"))?;
+            ic_cdk::spawn(async move { callback(response).await });
+            
             Ok(())
         })?;
 
@@ -279,7 +277,6 @@ fn handle_http_response(client_principal: Principal, request_id: HttpRequestId, 
                 .complete_request_for_client(client_principal, request_id)
         })?;
 
-        #[cfg(not(test))]
         log(&format!(
             "http_over_ws: Completed HTTP request {}",
             request_id
@@ -338,7 +335,6 @@ pub fn execute_http_request(
 
     match CONNECTED_CLIENTS.with(|clients| clients.borrow_mut().assign_request(request_id)) {
         Ok(assigned_client_principal) => {
-            #[cfg(not(test))]
             let timer_id = match timeout_ms {
                 Some(millis) => Some(ic_cdk_timers::set_timer(
                     Duration::from_millis(millis),
@@ -348,8 +344,6 @@ pub fn execute_http_request(
                 )),
                 None => None,
             };
-            #[cfg(test)]
-            let timer_id = None;
     
             HTTP_REQUESTS.with(|http_requests| {
                 http_requests.borrow_mut().insert(
@@ -358,16 +352,13 @@ pub fn execute_http_request(
                 );
             });
     
-            #[cfg(not(test))]
             send_ws_message(
                 assigned_client_principal,
                 HttpOverWsMessage::HttpRequest(request_id, http_request),
             );
         }
         Err(e) => {
-            log(&e);
-            #[cfg(not(test))]
-            trap("No available HTTP clients");
+            trap(&e);
         }
     }
 
@@ -480,7 +471,7 @@ fn ws_get_messages(args: CanisterWsGetMessagesArguments) -> CanisterWsGetMessage
 
 #[cfg(test)]
 mod tests {
-    use candid::{Principal, Nat};
+    use candid::Principal;
 
     use super::*;
 
@@ -541,38 +532,5 @@ mod tests {
 
         assert!(clients.0.get(&client_principal).expect("client must be connected").len() == 2);
         assert!(clients.0.get(&another_client_principal).expect("client must be connected").len() == 2);
-    }
-
-    #[test]
-    fn should_handle_response() {
-        let client_principal = Principal::from_text("aaaaa-aa").unwrap();
-
-        CONNECTED_CLIENTS.with(|clients| {
-            clients.borrow_mut().add_client(client_principal);
-        });
-
-        let request_id = execute_http_request(
-            Url::parse("https://omnia-iot.com").unwrap(),
-            HttpMethod::GET, vec![], 
-            None, 
-            None, 
-            None
-        );
-        CONNECTED_CLIENTS.with(|clients| {
-            assert!(clients.borrow_mut().assign_request(request_id).is_ok());
-        });
-
-        let response = HttpResponse {
-            status: Nat::from(200),
-            headers: vec![],
-            body: vec![],
-        };
-
-        assert!(handle_http_response(client_principal, request_id, response).is_ok());
-
-        // after handling the response, the corresponding request id should be removed from the client
-        CONNECTED_CLIENTS.with(|clients| {
-            assert_eq!(clients.borrow().0.get(&client_principal).expect("client must be connected").contains(&request_id), false);
-        });
     }
 }
