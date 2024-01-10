@@ -29,7 +29,7 @@ pub enum HttpMethod {
     DELETE,
 }
 
-type HttpHeader = ApiHttpHeader;
+pub type HttpHeader = ApiHttpHeader;
 
 #[derive(CandidType, Clone, Debug, Deserialize)]
 struct HttpRequest {
@@ -60,7 +60,7 @@ impl HttpOverWsMessage {
 }
 
 #[derive(CandidType, Clone, Deserialize)]
-enum HttpRequestFailureReason {
+pub enum HttpRequestFailureReason {
     Timeout,
     ErrorFromClient(String),
     /// Used when retrieving the request from the state
