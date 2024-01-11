@@ -7,7 +7,7 @@ use logger::log;
 use url::Url;
 
 pub fn on_open(args: OnOpenCallbackArgs) {
-    print(format!("Opened websocket: {:?}", args.client_principal));
+    print(format!("Client: {:?} connected", args.client_principal));
     http_over_ws::on_open(args.client_principal);
 }
 
@@ -19,6 +19,7 @@ pub fn on_message(args: OnMessageCallbackArgs) {
 
 pub fn on_close(args: OnCloseCallbackArgs) {
     print(format!("Client {:?} disconnected", args.client_principal));
+    http_over_ws::on_close(args.client_principal);
 }
 
 #[update]
