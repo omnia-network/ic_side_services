@@ -265,17 +265,16 @@ pub fn try_handle_http_over_ws_message(
     }
 }
 
-pub fn on_close(client_principal: Principal) {
+pub fn try_disconnect_http_proxy(client_principal: Principal) -> Result<(), String> {
     CONNECTED_CLIENTS.with(|clients| {
-        if let Err(e) = clients.borrow_mut().remove_client(&client_principal) {
-            log(&e);
-        };
-    });
+        clients.borrow_mut().remove_client(&client_principal)
+    })?;
 
     log(&format!(
         "http_over_ws: Client {} disconnected",
         client_principal
-    ))
+    ));
+    Ok(())
 }
 
 fn handle_http_response(

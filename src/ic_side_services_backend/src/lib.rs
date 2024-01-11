@@ -33,7 +33,7 @@ fn init_ws() {
 }
 
 fn on_open(args: OnOpenCallbackArgs) {
-    print(format!("Client: {:?} connected", args.client_principal));
+    print(format!("Ws client: {:?} connected", args.client_principal));
 }
 
 fn on_message(args: OnMessageCallbackArgs) {
@@ -43,7 +43,11 @@ fn on_message(args: OnMessageCallbackArgs) {
 }
 
 fn on_close(args: OnCloseCallbackArgs) {
-    http_over_ws::on_close(args.client_principal);
+    if let Err(_) = http_over_ws::try_disconnect_http_proxy(args.client_principal) {
+        print(format!("WS client {:?} disconnected", args.client_principal));
+    } else {
+        print(format!("Proxy client {:?} disconnected", args.client_principal));
+    }
 }
 
 #[init]
