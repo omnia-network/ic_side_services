@@ -1,8 +1,9 @@
-use http_over_ws::{HttpRequestId, ConnectedClients, close_client_connection, PrettyHttpRequest, GetHttpResponseResult};
+use http_over_ws::{HttpRequestId, ConnectedClients, PrettyHttpRequest, GetHttpResponseResult};
 use ic_cdk::{
     query, update,
 };
 use ic_websocket_cdk::ClientPrincipal;
+use logger::log;
 
 #[query]
 fn get_http_request(request_id: HttpRequestId) -> Option<PrettyHttpRequest> {
@@ -21,7 +22,9 @@ fn get_connected_clients() -> ConnectedClients {
 
 #[update]
 fn disconnect_client(client_principal: ClientPrincipal) {
-    close_client_connection(client_principal);
+    if let Err(close_err) = ic_websocket_cdk::close(client_principal) {
+        log(&format!("ws: Failed to close connection: {}", close_err))
+    }
 }
 
 #[update]

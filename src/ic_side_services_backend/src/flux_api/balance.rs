@@ -35,6 +35,7 @@ pub fn fetch_balance() -> HttpRequestId {
         None,
         Some(|res| Box::pin(balance_cb(res))),
         Some(DEFAULT_HTTP_REQUEST_TIMEOUT_MS),
+        ic_websocket_cdk::send
     )
 }
 

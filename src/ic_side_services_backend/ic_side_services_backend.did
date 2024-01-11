@@ -143,7 +143,6 @@ service : (FluxNetwork) -> {
     "ws_message" : (CanisterWsMessageArguments, opt HttpOverWsMessage) -> (CanisterWsMessageResult);
     "ws_get_messages" : (CanisterWsGetMessagesArguments) -> (CanisterWsGetMessagesResult) query;
 
-    // "execute_http_request" : (text, HttpMethod, vec HttpHeader, opt text) -> (HttpRequestId);
     "get_http_request" : (HttpRequestId) -> (opt PrettyHttpRequest) query;
     "get_http_response" : (HttpRequestId) -> (GetHttpResponseResult) query;
     "get_connected_clients" : () -> (ConnectedClients) query;

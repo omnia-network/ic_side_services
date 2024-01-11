@@ -81,23 +81,8 @@ type HttpHeader = record {
     value : text;
 };
 
-type HttpRequest = record {
-    url : text;
-    method : HttpMethod;
-    headers : vec HttpHeader;
-    body : opt blob;
-};
-
-type HttpResponse = record {
-    status : nat;
-    headers : vec HttpHeader;
-    body : blob;
-};
-
-type HttpOverWsMessage = variant {
-    HttpRequest : record { HttpRequestId; HttpRequest };
-    HttpResponse : record { HttpRequestId; HttpResponse };
-    Error : record { opt HttpRequestId; text };
+type AppMessage = record {
+    text : text;
 };
 
 service : () -> {
@@ -105,6 +90,6 @@ service : () -> {
   "get_logs" : () -> (vec record { text; text }) query;
   "ws_open" : (CanisterWsOpenArguments) -> (CanisterWsOpenResult);
   "ws_close" : (CanisterWsCloseArguments) -> (CanisterWsCloseResult);
-  "ws_message" : (CanisterWsMessageArguments, opt HttpOverWsMessage) -> (CanisterWsMessageResult);
+  "ws_message" : (CanisterWsMessageArguments, opt AppMessage) -> (CanisterWsMessageResult);
   "ws_get_messages" : (CanisterWsGetMessagesArguments) -> (CanisterWsGetMessagesResult) query;
 };

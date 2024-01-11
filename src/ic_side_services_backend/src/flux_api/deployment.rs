@@ -76,6 +76,7 @@ pub fn calculate_app_price(deployment_info: DeploymentInfo) -> HttpRequestId {
         Some(serde_json::to_string(&body).unwrap()),
         Some(|res| Box::pin(calculateprice_cb(res))),
         Some(DEFAULT_HTTP_REQUEST_TIMEOUT_MS),
+        ic_websocket_cdk::send
     )
 }
 
@@ -144,6 +145,7 @@ pub async fn register_app(deployment_info: DeploymentInfo) -> HttpRequestId {
         Some(|res| Box::pin(appregister_cb(res))),
         // this request can take longer to complete due to the sign_with_ecdsa in the callback
         Some(2 * DEFAULT_HTTP_REQUEST_TIMEOUT_MS),
+        ic_websocket_cdk::send
     )
 }
 
@@ -197,5 +199,6 @@ pub fn fetch_deployment_information() -> HttpRequestId {
         None,
         Some(|res| Box::pin(deploymentinformation_cb(res))),
         Some(DEFAULT_HTTP_REQUEST_TIMEOUT_MS),
+        ic_websocket_cdk::send,
     )
 }
