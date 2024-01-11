@@ -4,10 +4,10 @@ use crate::{
     NETWORK,
 };
 
-use http_over_ws::{execute_http_request, HttpMethod, HttpRequestId, HttpResponse};
+use http_over_ws::{execute_http_request, HttpMethod, HttpRequestId, HttpResponse, HttpOverWsError};
 use logger::log;
 
-pub fn fetch_balance() -> HttpRequestId {
+pub fn fetch_balance() -> Result<HttpRequestId, HttpOverWsError> {
     let mut balance_url = FLUX_API_BASE_URL.join("/explorer/balance").unwrap();
     balance_url.query_pairs_mut().append_pair(
         "address",

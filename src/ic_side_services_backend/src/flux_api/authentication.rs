@@ -11,10 +11,10 @@ use crate::{
     sign_with_ecdsa, NETWORK,
 };
 
-use http_over_ws::{execute_http_request, HttpHeader, HttpMethod, HttpRequestId, HttpResponse};
+use http_over_ws::{execute_http_request, HttpHeader, HttpMethod, HttpRequestId, HttpResponse, HttpOverWsError};
 use logger::log;
 
-pub fn login() -> HttpRequestId {
+pub fn login() -> Result<HttpRequestId, HttpOverWsError> {
     let loginphrase_url = FLUX_API_BASE_URL.join("/id/loginphrase").unwrap();
 
     async fn verifylogin_cb(res: HttpResponse) {
@@ -88,7 +88,7 @@ pub fn login() -> HttpRequestId {
     )
 }
 
-pub fn logout() -> HttpRequestId {
+pub fn logout() -> Result<HttpRequestId, HttpOverWsError> {
     let zelidauth = get_zelidauth_or_trap();
     let logout_url = FLUX_API_BASE_URL.join("/id/logoutcurrentsession").unwrap();
 

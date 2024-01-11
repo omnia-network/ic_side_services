@@ -25,8 +25,7 @@ pub fn on_close(args: OnCloseCallbackArgs) {
 }
 
 #[update]
-fn execute_http_request(url: String, method: HttpMethod, headers: Vec<HttpHeader>, body: Option<String>) -> u32 {
-
+fn execute_http_request(url: String, method: HttpMethod, headers: Vec<HttpHeader>, body: Option<String>) -> Result<u32, HttpOverWsError> {
     http_over_ws::execute_http_request(
         Url::parse(&url).unwrap(),
         method,

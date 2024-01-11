@@ -12,7 +12,7 @@ use crate::{
     sign_with_ecdsa, utils, NETWORK,
 };
 
-use http_over_ws::{execute_http_request, HttpMethod, HttpRequestId, HttpResponse};
+use http_over_ws::{execute_http_request, HttpMethod, HttpRequestId, HttpResponse, HttpOverWsError};
 use logger::log;
 
 pub type ComposeSpec = GetAppPriceRequestComposeInner;
@@ -31,7 +31,7 @@ pub struct DeploymentInfo {
 }
 
 /// See https://docs.runonflux.io/#tag/Apps/operation/getAppPrice.
-pub fn calculate_app_price(deployment_info: DeploymentInfo) -> HttpRequestId {
+pub fn calculate_app_price(deployment_info: DeploymentInfo) -> Result<HttpRequestId, HttpOverWsError> {
     let calculateprice_url = FLUX_API_BASE_URL.join("/apps/calculateprice").unwrap();
 
     let body = GetAppPriceRequest {
@@ -81,7 +81,7 @@ pub fn calculate_app_price(deployment_info: DeploymentInfo) -> HttpRequestId {
 }
 
 /// See https://docs.runonflux.io/#tag/Apps/operation/Appregister.
-pub async fn register_app(deployment_info: DeploymentInfo) -> HttpRequestId {
+pub async fn register_app(deployment_info: DeploymentInfo) -> Result<HttpRequestId, HttpOverWsError> {
     let zelidauth = get_zelidauth_or_trap();
     let appregister_url = FLUX_API_BASE_URL.join("/apps/appregister").unwrap();
 
@@ -165,7 +165,7 @@ struct DeploymentInformationResponse {
 }
 
 /// See https://docs.runonflux.io/#tag/Apps/operation/getDeploymentInformatio.
-pub fn fetch_deployment_information() -> HttpRequestId {
+pub fn fetch_deployment_information() -> Result<HttpRequestId, HttpOverWsError> {
     let deploymentinformation_url = FLUX_API_BASE_URL
         .join("/apps/deploymentinformation")
         .unwrap();
