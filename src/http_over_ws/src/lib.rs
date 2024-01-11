@@ -11,7 +11,7 @@ use ic_cdk::{
     api::management_canister::http_request::{
         HttpHeader as ApiHttpHeader, HttpResponse as ApiHttpResponse,
     },
-    query, trap, update,
+    trap
 };
 use ic_cdk_timers::TimerId;
 use logger::log;
@@ -202,7 +202,7 @@ pub fn try_handle_http_over_ws_message(client_principal: Principal, serialized_m
                     None,
                     String::from("Clients are not allowed to send HTTP requests"),
                 ).to_bytes(),
-            );
+            ).unwrap();
         }
         HttpOverWsMessage::HttpResponse(request_id, response) => {
             if let Err(e) = handle_http_response(client_principal, request_id, response) {
@@ -357,7 +357,7 @@ pub fn execute_http_request(
             ws_send(
                 assigned_client_principal,
                 HttpOverWsMessage::HttpRequest(request_id, http_request).to_bytes(),
-            );
+            ).unwrap();
         }
         Err(e) => {
             trap(&e);
