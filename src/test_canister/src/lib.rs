@@ -1,15 +1,21 @@
-use candid::{Principal, Nat};
+use candid::Principal;
 use ic_cdk_macros::*;
-use ic_websocket_cdk::{OnMessageCallbackArgs, CanisterWsOpenArguments};
-use http_over_ws::{HttpMethod, HttpResponse, HttpOverWsMessage, init_ws};
-use url::Url;
 use logger::Logs;
+use candid::CandidType;
+use canister::{on_open, on_close, on_message};
+use ic_websocket_cdk::{
+    CanisterCloseResult, CanisterSendResult, CanisterWsCloseArguments, CanisterWsCloseResult,
+    CanisterWsGetMessagesArguments, CanisterWsGetMessagesResult, CanisterWsMessageArguments,
+    CanisterWsMessageResult, CanisterWsOpenArguments, CanisterWsOpenResult, ClientPrincipal,
+    WsHandlers, WsInitParams,
+};
+use serde::{Serialize, Deserialize};
+
+mod canister;
 
 #[init]
 fn init() {
     init_ws();
-
-    ic_websocket_cdk::ws_open(CanisterWsOpenArguments::new(0, Principal::from_text("siv4u-w6soj-sx6qh-skhd4-gktr2-2rylx-v5ble-yc73i-mdbvl-gwe32-iqe").unwrap())).unwrap();
 }
 
 #[post_upgrade]
@@ -17,32 +23,68 @@ fn post_upgrade() {
     init();
 }
 
-#[update]
-fn execute_http_request() -> u32 {
-    http_over_ws::execute_http_request(
-        Url::parse("https://omnia-iot.com").unwrap(),
-        HttpMethod::GET, vec![], 
-        None, 
-        None, 
-        None
-    )
-}
-
-#[update]
-fn handle_http_response(request_id: u32) {
-    let bytes = HttpOverWsMessage::HttpResponse(request_id, HttpResponse {
-        status: Nat::from(200),
-        headers: vec![],
-        body: vec![],
-    }).to_bytes();
-    let args = OnMessageCallbackArgs {
-        client_principal: Principal::from_text("siv4u-w6soj-sx6qh-skhd4-gktr2-2rylx-v5ble-yc73i-mdbvl-gwe32-iqe").unwrap(),
-        message: bytes
-    };
-    http_over_ws::on_message(args);
-}
-
 #[query]
 fn get_logs() -> Logs {
     logger::get_logs()
+}
+
+#[derive(CandidType, Serialize, Deserialize)]
+pub struct AppMessage {
+    pub text: String,
+}
+
+pub fn init_ws() {
+    let params = WsInitParams::new(WsHandlers {
+        on_open: Some(on_open),
+        on_message: Some(on_message),
+        on_close: Some(on_close),
+    });
+
+    ic_websocket_cdk::init(params);
+}
+
+// method called by the WS Gateway after receiving FirstMessage from the client
+#[update]
+pub fn ws_open(args: CanisterWsOpenArguments) -> CanisterWsOpenResult {
+    ic_websocket_cdk::ws_open(args)
+}
+
+// method called by the Ws Gateway when closing the IcWebSocket connection
+#[update]
+pub fn ws_close(args: CanisterWsCloseArguments) -> CanisterWsCloseResult {
+    ic_websocket_cdk::ws_close(args)
+}
+
+// method called by the WS Gateway to send a message of type GatewayMessage to the canister
+#[update]
+pub fn ws_message(
+    args: CanisterWsMessageArguments,
+    msg_type: Option<AppMessage>,
+) -> CanisterWsMessageResult {
+    ic_websocket_cdk::ws_message(args, msg_type)
+}
+
+// method called by the WS Gateway to get messages for all the clients it serves
+#[query]
+pub fn ws_get_messages(args: CanisterWsGetMessagesArguments) -> CanisterWsGetMessagesResult {
+    ic_websocket_cdk::ws_get_messages(args)
+}
+
+//// Debug/tests methods
+// send a message to the client, usually called by the canister itself
+#[update]
+pub fn send(client_principal: ClientPrincipal, messages: Vec<Vec<u8>>) -> CanisterSendResult {
+    for msg_bytes in messages {
+        match ic_websocket_cdk::send(client_principal, msg_bytes) {
+            Ok(_) => {},
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(())
+}
+
+// close the connection with a client, usually called by the canister itself
+#[update]
+pub fn close(client_principal: ClientPrincipal) -> CanisterCloseResult {
+    ic_websocket_cdk::close(client_principal)
 }
