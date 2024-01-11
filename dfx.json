@@ -25,5 +25,5 @@
   },
   "output_env_file": "ic-http-request-executor/.env",
   "version": 1,
-  "dfx": "0.15.0"
+  "dfx": "0.15.3"
 }
