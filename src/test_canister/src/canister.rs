@@ -1,5 +1,5 @@
 use std::{future::Future, pin::Pin};
-use http_over_ws::{HttpMethod, HttpResponse, HttpHeader};
+use http_over_ws::{HttpMethod, HttpResponse, HttpHeader, HttpOverWsError};
 use ic_cdk::print;
 use ic_cdk_macros::update;
 use ic_websocket_cdk::{OnCloseCallbackArgs, OnMessageCallbackArgs, OnOpenCallbackArgs};
@@ -8,11 +8,10 @@ use url::Url;
 
 pub fn on_open(args: OnOpenCallbackArgs) {
     print(format!("Client: {:?} connected", args.client_principal));
-    http_over_ws::on_open(args.client_principal);
 }
 
 pub fn on_message(args: OnMessageCallbackArgs) {
-    if let Err(_) = http_over_ws::try_handle_http_over_ws_message(args.client_principal, args.message, ic_websocket_cdk::send) {
+    if let Err(HttpOverWsError::NotHttpOverWsType(_)) = http_over_ws::try_handle_http_over_ws_message(args.client_principal, args.message) {
         log("Received WS client message")
     }
 }

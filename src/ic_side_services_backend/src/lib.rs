@@ -6,7 +6,7 @@ use ecdsa_api::{
 };
 use flux_api::authentication::{get_zelidauth, set_zelidauth};
 use http_over_ws::HttpOverWsMessage;
-use ic_cdk::{init, post_upgrade, pre_upgrade, query, update};
+use ic_cdk::{init, post_upgrade, pre_upgrade, query, update, print};
 use flux::FluxNetwork;
 use ic_websocket_cdk::{WsInitParams, WsHandlers, OnCloseCallbackArgs, OnMessageCallbackArgs, OnOpenCallbackArgs, CanisterWsOpenArguments, CanisterWsOpenResult, CanisterWsCloseResult, CanisterWsCloseArguments, CanisterWsMessageArguments, CanisterWsMessageResult, CanisterWsGetMessagesArguments, CanisterWsGetMessagesResult};
 use logger::{log, Logs};
@@ -33,11 +33,11 @@ fn init_ws() {
 }
 
 fn on_open(args: OnOpenCallbackArgs) {
-    http_over_ws::on_open(args.client_principal);
+    print(format!("Client: {:?} connected", args.client_principal));
 }
 
 fn on_message(args: OnMessageCallbackArgs) {
-    if let Err(_) = http_over_ws::try_handle_http_over_ws_message(args.client_principal, args.message, ic_websocket_cdk::send) {
+    if let Err(_) = http_over_ws::try_handle_http_over_ws_message(args.client_principal, args.message) {
         log("Received WS client message")
     }
 }

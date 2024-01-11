@@ -59,6 +59,7 @@ pub type HttpCallback = fn(HttpResponse) -> Pin<Box<dyn Future<Output = ()>>>;
 
 #[derive(CandidType, Debug, Deserialize)]
 pub enum HttpOverWsMessage {
+    SetupProxyClient(Principal),
     HttpRequest(HttpRequestId, HttpRequest),
     HttpResponse(HttpRequestId, HttpResponse),
     Error(Option<HttpRequestId>, String),
@@ -72,6 +73,14 @@ impl HttpOverWsMessage {
     fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
         decode_one(bytes).map_err(|e| e.to_string())
     }
+}
+
+pub enum HttpOverWsError {
+    /// The message is not an HttpOverWsMessage, therefore the on_message callback given to the IC WS cdk
+    /// should try to parse it as its own message type.
+    NotHttpOverWsType(String),
+    /// The message is an HttpOverWsMessage, however it is not what it is expected to be.
+    InvalidHttpMessage(String)
 }
 
 #[derive(CandidType, Clone, Deserialize)]
@@ -117,11 +126,11 @@ impl ConnectedClients {
         ConnectedClients(HashMap::new())
     }
 
-    pub fn add_client(&mut self, client_principal: Principal) {
+    fn add_client(&mut self, client_principal: Principal) {
         self.0.insert(client_principal, HashSet::new());
     }
 
-    pub fn get_client_for_request(&self, request_id: HttpRequestId) -> Option<Principal> {
+    fn get_client_for_request(&self, request_id: HttpRequestId) -> Option<Principal> {
         let connected_clients_count = self.0.len();
         if connected_clients_count == 0 {
             return None;
@@ -135,30 +144,24 @@ impl ConnectedClients {
             self.0
                 .iter()
                 .nth(chosen_client_index)
-                .expect("client must be connected")
+                .expect("client is not connected")
                 .0
                 .clone(),
         )
     }
 
-    pub fn get_connected_clients(&self) -> Vec<Principal> {
-        self.0.keys().cloned().collect()
-    }
-
-    pub fn assign_request_to_client(
+    fn assign_request_to_client(
         &mut self,
         client_principal: &Principal,
         request_id: HttpRequestId,
     ) {
         self.0
             .get_mut(&client_principal)
-            .expect("client must be connected")
+            .expect("client is not connected")
             .insert(request_id);
     }
 
-    pub fn assign_request(&mut self, request_id: HttpRequestId) -> Result<Principal, String> {
-        // pick an arbitrary client
-        // TODO: check whether keys are returned in arbitrary order
+    fn assign_request(&mut self, request_id: HttpRequestId) -> Result<Principal, String> {
         let client_principal = self
             .get_client_for_request(request_id)
             .ok_or(String::from("no clients connected"))?
@@ -167,18 +170,19 @@ impl ConnectedClients {
         Ok(client_principal)
     }
 
-    pub fn is_request_assigned_to_client(
+    fn is_request_assigned_to_client(
         &self,
         client_principal: Principal,
         request_id: HttpRequestId,
     ) -> bool {
         self.0
             .get(&client_principal)
+            .ok_or(String::from("client is not connected"))
             .map(|set| set.contains(&request_id))
             .unwrap_or(false)
     }
 
-    pub fn complete_request_for_client(
+    fn complete_request_for_client(
         &mut self,
         client_principal: Principal,
         request_id: HttpRequestId,
@@ -192,7 +196,7 @@ impl ConnectedClients {
         Ok(())
     }
 
-    pub fn remove_client(&mut self, client_principal: &Principal) -> Result<(), String> {
+    fn remove_client(&mut self, client_principal: &Principal) -> Result<(), String> {
         self.0
             .remove(client_principal)
             .ok_or(String::from("client not connected"))?;
@@ -205,24 +209,14 @@ thread_local! {
     /* flexible */ static CONNECTED_CLIENTS: RefCell<ConnectedClients> = RefCell::new(ConnectedClients::new());
 }
 
-pub fn on_open(client_principal: Principal) {
-    // assuming only http proxy connects as a client
-    // TODO: handle case in which it's either a ws proxy or a real ws client connecting <
-    CONNECTED_CLIENTS.with(|clients| {
-        clients.borrow_mut().add_client(client_principal);
-    });
-    log(&format!(
-        "http_over_ws: Client {} connected",
-        client_principal
-    ))
-}
-
+/// Called by the callbacl passed to the IC WS cdk when a new message is received.
+/// Checks if the message is an HttpOverWsMessage, and if so it handles it.
+/// Otherwise, it returns 'HttpOverWsError::NotHttpOverWsType' to signal the callback that it should treat it as a WS message sent by one of the WS clients (and not an HTTP Proxy)
 pub fn try_handle_http_over_ws_message(
     client_principal: Principal,
     serialized_message: Vec<u8>,
-    ws_send: fn(Principal, Vec<u8>) -> Result<(), String>,
-) -> Result<(), String> {
-    let incoming_msg = HttpOverWsMessage::from_bytes(&serialized_message)?;
+) -> Result<(), HttpOverWsError> {
+    let incoming_msg = HttpOverWsMessage::from_bytes(&serialized_message).map_err(|e| HttpOverWsError::NotHttpOverWsType(e))?;
 
     log(&format!(
         "http_over_ws: incoming message: {:?} from {}",
@@ -230,24 +224,25 @@ pub fn try_handle_http_over_ws_message(
     ));
 
     match incoming_msg {
-        HttpOverWsMessage::HttpRequest(_, _) => {
-            ws_send(
-                client_principal,
-                HttpOverWsMessage::Error(
-                    None,
-                    String::from("Clients are not allowed to send HTTP requests"),
-                )
-                .to_bytes(),
-            )
-            .unwrap();
-        }
+        HttpOverWsMessage::SetupProxyClient(client_principal) => {
+            CONNECTED_CLIENTS.with(|clients| {
+                clients.borrow_mut().add_client(client_principal);
+            });
+            log(&format!(
+                "http_over_ws: proxy client {} connected",
+                client_principal
+            ));
+            Ok(())
+        },
         HttpOverWsMessage::HttpResponse(request_id, response) => {
             if let Err(e) = handle_http_response(client_principal, request_id, response) {
                 log(&e);
             }
-        }
+            Ok(())
+        },
         HttpOverWsMessage::Error(request_id, err) => {
-            log(&format!("http_over_ws: incoming error: {}", err));
+            let e = format!("http_over_ws: incoming error: {}", err);
+            log(&err);
 
             if let Some(request_id) = request_id {
                 HTTP_REQUESTS.with(|http_requests| {
@@ -256,14 +251,18 @@ pub fn try_handle_http_over_ws_message(
                         .get_mut(&request_id)
                         .and_then(|r| {
                             r.failure_reason = Some(HttpRequestFailureReason::ErrorFromClient(err));
-
                             Some(r)
                         });
                 });
             }
-        }
-    };
-    Ok(())
+            Err(HttpOverWsError::InvalidHttpMessage(e))
+        },
+        HttpOverWsMessage::HttpRequest(_, _) => {
+            let e = String::from("http_over_ws: proxy client is not allowed to send HTTP requests over WS");
+            log(&e);
+            Err(HttpOverWsError::InvalidHttpMessage(e))
+        },
+    }
 }
 
 pub fn on_close(client_principal: Principal) {
@@ -277,18 +276,6 @@ pub fn on_close(client_principal: Principal) {
         "http_over_ws: Client {} disconnected",
         client_principal
     ))
-}
-
-pub fn get_connected_clients() -> ConnectedClients {
-    CONNECTED_CLIENTS.with(|clients| clients.borrow().clone())
-}
-
-pub fn get_connected_client_principals() -> Vec<Principal> {
-    get_connected_clients()
-        .0
-        .keys()
-        .cloned()
-        .collect::<Vec<_>>()
 }
 
 fn handle_http_response(
@@ -326,7 +313,7 @@ fn handle_http_response(
         })?;
 
         log(&format!(
-            "http_over_ws: Completed HTTP request {}",
+            "http_over_ws: completed HTTP request {}",
             request_id
         ));
 
@@ -491,7 +478,7 @@ mod tests {
         assert!(clients
             .0
             .get(&client_principal)
-            .expect("client must be connected")
+            .expect("client is not connected")
             .contains(&request_id));
 
         assert!(clients.is_request_assigned_to_client(client_principal, request_id));
@@ -547,7 +534,7 @@ mod tests {
             clients
                 .0
                 .get(&client_principal)
-                .expect("client must be connected")
+                .expect("client is not connected")
                 .len()
                 == 2
         );
@@ -555,7 +542,7 @@ mod tests {
             clients
                 .0
                 .get(&another_client_principal)
-                .expect("client must be connected")
+                .expect("client is not connected")
                 .len()
                 == 2
         );
