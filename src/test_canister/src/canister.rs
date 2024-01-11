@@ -1,42 +1,49 @@
-use std::{future::Future, pin::Pin};
-use http_over_ws::{HttpMethod, HttpResponse, HttpHeader, HttpOverWsError};
-use ic_cdk::print;
-use ic_cdk_macros::update;
+use http_over_ws::{
+    HttpOverWsError, HttpRequest, HttpRequestFailureReason, HttpRequestId, HttpResponse,
+    PrettyHttpResponse,
+};
+use ic_cdk_macros::{query, update};
 use ic_websocket_cdk::{OnCloseCallbackArgs, OnMessageCallbackArgs, OnOpenCallbackArgs};
 use logger::log;
 use url::Url;
 
 pub fn on_open(args: OnOpenCallbackArgs) {
-    print(format!("Client: {:?} connected", args.client_principal));
+    log(&format!("Client: {:?} connected", args.client_principal));
 }
 
 pub fn on_message(args: OnMessageCallbackArgs) {
-    if let Err(HttpOverWsError::NotHttpOverWsType(_)) = http_over_ws::try_handle_http_over_ws_message(args.client_principal, args.message) {
-        log("Received WS client message")
+    if let Err(HttpOverWsError::NotHttpOverWsType(_)) =
+        http_over_ws::try_handle_http_over_ws_message(args.client_principal, args.message.clone())
+    {
+        log(&format!(
+            "Received WS client message: {:?} from {}",
+            args.message, args.client_principal
+        ));
     }
 }
 
 pub fn on_close(args: OnCloseCallbackArgs) {
-    print(format!("Client {:?} disconnected", args.client_principal));
     http_over_ws::on_close(args.client_principal);
 }
 
 #[update]
-fn execute_http_request(url: String, method: HttpMethod, headers: Vec<HttpHeader>, body: Option<String>) -> u32 {
-
+fn execute_http_request(req: HttpRequest) -> u32 {
     http_over_ws::execute_http_request(
-        Url::parse(&url).unwrap(),
-        method,
-        headers,
-        body,
-        Some(callback),
+        Url::parse(&req.url).unwrap(),
+        req.method,
+        req.headers,
+        req.body.map(|b| String::from_utf8_lossy(&b).to_string()), // TODO: change execute_http_request to take Vec<u8>
+        Some(|res| Box::pin(callback(res))),
         Some(10_000),
-        ic_websocket_cdk::send
+        ic_websocket_cdk::send,
     )
 }
 
-fn callback(response: HttpResponse) -> Pin<Box<dyn Future<Output = ()>>> {
-    Box::pin(async move {
-        print(format!("Received response: {:?}", response));
-    })
+async fn callback(response: HttpResponse) {
+    log(&format!("Response: {:?}", response));
+}
+
+#[query]
+fn get_http_response(id: HttpRequestId) -> Result<PrettyHttpResponse, HttpRequestFailureReason> {
+    http_over_ws::get_http_response(id)
 }

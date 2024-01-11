@@ -113,6 +113,34 @@ impl TestEnv {
             _ => panic!("Expected reply"),
         }
     }
+
+    /// # Panics
+    /// if the call returns a [WasmResult::Reject].
+    pub fn query_canister_method_with_panic<T, S>(
+        &self,
+        caller: Principal,
+        method: CanisterMethod,
+        args: T,
+    ) -> S
+    where
+        T: CandidType,
+        S: CandidType + for<'a> Deserialize<'a>,
+    {
+        let res = self
+            .pic
+            .query_call(
+                self.get_test_canister_id(),
+                caller,
+                &method.to_string(),
+                encode_one(args).unwrap(),
+            )
+            .expect("Failed to call canister");
+
+        match res {
+            WasmResult::Reply(bytes) => decode_one(&bytes).unwrap(),
+            _ => panic!("Expected reply"),
+        }
+    }
 }
 
 fn load_canister_wasm_from_path(path: &PathBuf) -> Vec<u8> {

@@ -19,7 +19,7 @@ use url::Url;
 
 pub type HttpRequestId = u32;
 
-#[derive(CandidType, Clone, Debug, Deserialize)]
+#[derive(CandidType, Clone, Debug, Deserialize, PartialEq, Eq)]
 pub enum HttpMethod {
     GET,
     POST,
@@ -30,12 +30,12 @@ pub enum HttpMethod {
 
 pub type HttpHeader = ApiHttpHeader;
 
-#[derive(CandidType, Clone, Debug, Deserialize)]
+#[derive(CandidType, Clone, Debug, Deserialize, PartialEq, Eq)]
 pub struct HttpRequest {
-    url: String,
-    method: HttpMethod,
-    headers: Vec<HttpHeader>,
-    body: Option<Vec<u8>>,
+    pub url: String,
+    pub method: HttpMethod,
+    pub headers: Vec<HttpHeader>,
+    pub body: Option<Vec<u8>>,
 }
 
 impl HttpRequest {
@@ -57,9 +57,9 @@ impl HttpRequest {
 pub type HttpResponse = ApiHttpResponse;
 pub type HttpCallback = fn(HttpResponse) -> Pin<Box<dyn Future<Output = ()>>>;
 
-#[derive(CandidType, Debug, Deserialize)]
+#[derive(CandidType, Debug, Deserialize, PartialEq, Eq)]
 pub enum HttpOverWsMessage {
-    SetupProxyClient(Principal),
+    SetupProxyClient,
     HttpRequest(HttpRequestId, HttpRequest),
     HttpResponse(HttpRequestId, HttpResponse),
     Error(Option<HttpRequestId>, String),
@@ -80,7 +80,7 @@ pub enum HttpOverWsError {
     /// should try to parse it as its own message type.
     NotHttpOverWsType(String),
     /// The message is an HttpOverWsMessage, however it is not what it is expected to be.
-    InvalidHttpMessage(String)
+    InvalidHttpMessage(String),
 }
 
 #[derive(CandidType, Clone, Deserialize)]
@@ -216,7 +216,8 @@ pub fn try_handle_http_over_ws_message(
     client_principal: Principal,
     serialized_message: Vec<u8>,
 ) -> Result<(), HttpOverWsError> {
-    let incoming_msg = HttpOverWsMessage::from_bytes(&serialized_message).map_err(|e| HttpOverWsError::NotHttpOverWsType(e))?;
+    let incoming_msg = HttpOverWsMessage::from_bytes(&serialized_message)
+        .map_err(|e| HttpOverWsError::NotHttpOverWsType(e))?;
 
     log(&format!(
         "http_over_ws: incoming message: {:?} from {}",
@@ -224,7 +225,7 @@ pub fn try_handle_http_over_ws_message(
     ));
 
     match incoming_msg {
-        HttpOverWsMessage::SetupProxyClient(client_principal) => {
+        HttpOverWsMessage::SetupProxyClient => {
             CONNECTED_CLIENTS.with(|clients| {
                 clients.borrow_mut().add_client(client_principal);
             });
@@ -233,13 +234,13 @@ pub fn try_handle_http_over_ws_message(
                 client_principal
             ));
             Ok(())
-        },
+        }
         HttpOverWsMessage::HttpResponse(request_id, response) => {
             if let Err(e) = handle_http_response(client_principal, request_id, response) {
                 log(&e);
             }
             Ok(())
-        },
+        }
         HttpOverWsMessage::Error(request_id, err) => {
             let e = format!("http_over_ws: incoming error: {}", err);
             log(&err);
@@ -256,12 +257,14 @@ pub fn try_handle_http_over_ws_message(
                 });
             }
             Err(HttpOverWsError::InvalidHttpMessage(e))
-        },
+        }
         HttpOverWsMessage::HttpRequest(_, _) => {
-            let e = String::from("http_over_ws: proxy client is not allowed to send HTTP requests over WS");
+            let e = String::from(
+                "http_over_ws: proxy client is not allowed to send HTTP requests over WS",
+            );
             log(&e);
             Err(HttpOverWsError::InvalidHttpMessage(e))
-        },
+        }
     }
 }
 
