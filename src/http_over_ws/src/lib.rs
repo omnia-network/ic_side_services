@@ -7,11 +7,8 @@ use std::{
 };
 
 use candid::{decode_one, encode_one, CandidType, Deserialize, Principal};
-use ic_cdk::{
-    api::management_canister::http_request::{
-        HttpHeader as ApiHttpHeader, HttpResponse as ApiHttpResponse,
-    },
-    trap,
+use ic_cdk::api::management_canister::http_request::{
+    HttpHeader as ApiHttpHeader, HttpResponse as ApiHttpResponse,
 };
 use ic_cdk_timers::TimerId;
 use logger::log;
@@ -81,7 +78,7 @@ pub enum HttpOverWsError {
     /// should try to parse it as its own message type.
     NotHttpOverWsType(String),
     /// The message is an HttpOverWsMessage, however it is not what it is expected to be.
-    InvalidHttpMessage(HttpFailureReason)
+    InvalidHttpMessage(HttpFailureReason),
 }
 
 #[derive(CandidType, Clone, Debug, Deserialize)]
@@ -160,15 +157,22 @@ impl ConnectedClients {
     ) -> Result<(), HttpFailureReason> {
         self.0
             .get_mut(&client_principal)
-            .ok_or(HttpFailureReason::ProxyError(String::from("proxy not connected")))?
+            .ok_or(HttpFailureReason::ProxyError(String::from(
+                "proxy not connected",
+            )))?
             .insert(request_id);
         Ok(())
     }
 
-    fn assign_request(&mut self, request_id: HttpRequestId) -> Result<Principal, HttpFailureReason> {
+    fn assign_request(
+        &mut self,
+        request_id: HttpRequestId,
+    ) -> Result<Principal, HttpFailureReason> {
         let client_principal = self
             .get_client_for_request(request_id)
-            .ok_or(HttpFailureReason::ProxyError(String::from("no clients connected")))?
+            .ok_or(HttpFailureReason::ProxyError(String::from(
+                "no clients connected",
+            )))?
             .clone();
         self.assign_request_to_client(&client_principal, request_id)?;
         Ok(client_principal)
@@ -179,15 +183,27 @@ impl ConnectedClients {
         client_principal: Principal,
         request_id: HttpRequestId,
     ) -> Result<(), HttpFailureReason> {
-        let client = self.0.get_mut(&client_principal).ok_or(HttpFailureReason::ProxyError(String::from("proxy not connected")))?;
-        client.remove(&request_id).then(|| ()).ok_or(HttpFailureReason::ProxyError(String::from("client has not been assigned the request")))?;
+        let client = self
+            .0
+            .get_mut(&client_principal)
+            .ok_or(HttpFailureReason::ProxyError(String::from(
+                "proxy not connected",
+            )))?;
+        client
+            .remove(&request_id)
+            .then(|| ())
+            .ok_or(HttpFailureReason::ProxyError(String::from(
+                "client has not been assigned the request",
+            )))?;
         Ok(())
     }
 
     fn remove_client(&mut self, client_principal: &Principal) -> Result<(), HttpFailureReason> {
         self.0
             .remove(client_principal)
-            .ok_or(HttpFailureReason::ProxyError(String::from("client not connected")))?;
+            .ok_or(HttpFailureReason::ProxyError(String::from(
+                "client not connected",
+            )))?;
         Ok(())
     }
 }
@@ -204,7 +220,8 @@ pub fn try_handle_http_over_ws_message(
     client_principal: Principal,
     serialized_message: Vec<u8>,
 ) -> Result<(), HttpOverWsError> {
-    let incoming_msg = HttpOverWsMessage::from_bytes(&serialized_message).map_err(|e| HttpOverWsError::NotHttpOverWsType(e))?;
+    let incoming_msg = HttpOverWsMessage::from_bytes(&serialized_message)
+        .map_err(|e| HttpOverWsError::NotHttpOverWsType(e))?;
 
     log(&format!(
         "http_over_ws: incoming message: {:?} from {}",
@@ -221,11 +238,11 @@ pub fn try_handle_http_over_ws_message(
                 client_principal
             ));
             Ok(())
-        },
+        }
         HttpOverWsMessage::HttpResponse(request_id, response) => {
             handle_http_response(client_principal, request_id, response)?;
             Ok(())
-        },
+        }
         HttpOverWsMessage::Error(request_id, err) => {
             let e = format!("http_over_ws: incoming error: {}", err);
             log(&err);
@@ -241,20 +258,24 @@ pub fn try_handle_http_over_ws_message(
                         });
                 });
             }
-            Err(HttpOverWsError::InvalidHttpMessage(HttpFailureReason::ProxyError(e)))
-        },
+            Err(HttpOverWsError::InvalidHttpMessage(
+                HttpFailureReason::ProxyError(e),
+            ))
+        }
         HttpOverWsMessage::HttpRequest(_, _) => {
-            let e = String::from("http_over_ws: proxy client is not allowed to send HTTP requests over WS");
+            let e = String::from(
+                "http_over_ws: proxy client is not allowed to send HTTP requests over WS",
+            );
             log(&e);
-            Err(HttpOverWsError::InvalidHttpMessage(HttpFailureReason::ProxyError(e)))
-        },
+            Err(HttpOverWsError::InvalidHttpMessage(
+                HttpFailureReason::ProxyError(e),
+            ))
+        }
     }
 }
 
 pub fn try_disconnect_http_proxy(client_principal: Principal) -> Result<(), HttpFailureReason> {
-    CONNECTED_CLIENTS.with(|clients| {
-        clients.borrow_mut().remove_client(&client_principal)
-    })?;
+    CONNECTED_CLIENTS.with(|clients| clients.borrow_mut().remove_client(&client_principal))?;
 
     log(&format!(
         "http_over_ws: Client {} disconnected",
@@ -268,11 +289,11 @@ fn handle_http_response(
     request_id: HttpRequestId,
     response: HttpResponse,
 ) -> Result<(), HttpOverWsError> {
-
     CONNECTED_CLIENTS.with(|clients| {
         clients
             .borrow_mut()
-            .complete_request_for_client(client_principal, request_id).map_err(|e| HttpOverWsError::InvalidHttpMessage(e))
+            .complete_request_for_client(client_principal, request_id)
+            .map_err(|e| HttpOverWsError::InvalidHttpMessage(e))
     })?;
 
     // assign response to a previous request
@@ -280,14 +301,23 @@ fn handle_http_response(
         let mut h = http_requests.borrow_mut();
         let r = h
             .get_mut(&request_id)
-            .ok_or(HttpOverWsError::InvalidHttpMessage(HttpFailureReason::RequestIdNotFound))?;
+            .ok_or(HttpOverWsError::InvalidHttpMessage(
+                HttpFailureReason::RequestIdNotFound,
+            ))?;
         r.response = Some(response.clone());
 
         // response has been received, clear the timer
-        let timer_id = r.timer_id.take().ok_or(HttpOverWsError::InvalidHttpMessage(HttpFailureReason::TimerNotSet))?;
+        let timer_id = r
+            .timer_id
+            .take()
+            .ok_or(HttpOverWsError::InvalidHttpMessage(
+                HttpFailureReason::TimerNotSet,
+            ))?;
         ic_cdk_timers::clear_timer(timer_id);
 
-        let callback = r.callback.ok_or(HttpOverWsError::InvalidHttpMessage(HttpFailureReason::CallbackNotSet))?;
+        let callback = r.callback.ok_or(HttpOverWsError::InvalidHttpMessage(
+            HttpFailureReason::CallbackNotSet,
+        ))?;
         ic_cdk::spawn(async move { callback(response).await });
 
         Ok(())
@@ -347,7 +377,8 @@ pub fn execute_http_request(
 
     let request_id = HTTP_REQUESTS.with(|http_requests| http_requests.borrow().len() + 1) as u32;
 
-    let assigned_client_principal = CONNECTED_CLIENTS.with(|clients| clients.borrow_mut().assign_request(request_id))
+    let assigned_client_principal = CONNECTED_CLIENTS
+        .with(|clients| clients.borrow_mut().assign_request(request_id))
         .map_err(|e| HttpOverWsError::InvalidHttpMessage(e))?;
 
     let timer_id = match timeout_ms {

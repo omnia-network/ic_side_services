@@ -65,7 +65,7 @@ type CanisterWsGetMessagesResult = variant {
 };
 /* End WebSocket types */
 
-/* Application types */
+/* HttpOverWs types */
 type HttpRequestId = nat32;
 
 type HttpMethod = variant {
@@ -81,15 +81,32 @@ type HttpHeader = record {
     value : text;
 };
 
+type HttpOverWsError = variant {
+    NotHttpOverWsType : text;
+    InvalidHttpMessage : HttpFailureReason;
+};
+
+type HttpFailureReason = variant {
+    RequestTimeout;
+    ProxyError : text;
+    RequestIdNotFound;
+    TimerNotSet;
+    CallbackNotSet;
+    Unknown;
+};
+/* End HttpOverWs types */
+
+/* Application types */
 type AppMessage = record {
     text : text;
 };
+/* End Application types */
 
 service : () -> {
-  "execute_http_request" : (text, HttpMethod, vec HttpHeader, opt text) -> (HttpRequestId);
-  "get_logs" : () -> (vec record { text; text }) query;
-  "ws_open" : (CanisterWsOpenArguments) -> (CanisterWsOpenResult);
-  "ws_close" : (CanisterWsCloseArguments) -> (CanisterWsCloseResult);
-  "ws_message" : (CanisterWsMessageArguments, opt AppMessage) -> (CanisterWsMessageResult);
-  "ws_get_messages" : (CanisterWsGetMessagesArguments) -> (CanisterWsGetMessagesResult) query;
+    "execute_http_request" : (text, HttpMethod, vec HttpHeader, opt text) -> (HttpRequestId, HttpOverWsError);
+    "get_logs" : () -> (vec record { text; text }) query;
+    "ws_open" : (CanisterWsOpenArguments) -> (CanisterWsOpenResult);
+    "ws_close" : (CanisterWsCloseArguments) -> (CanisterWsCloseResult);
+    "ws_message" : (CanisterWsMessageArguments, opt AppMessage) -> (CanisterWsMessageResult);
+    "ws_get_messages" : (CanisterWsGetMessagesArguments) -> (CanisterWsGetMessagesResult) query;
 };
