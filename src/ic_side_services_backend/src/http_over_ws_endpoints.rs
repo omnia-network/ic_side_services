@@ -1,12 +1,10 @@
-use http_over_ws::{HttpRequestId, PrettyHttpRequest, GetHttpResponseResult};
-use ic_cdk::{
-    query, update,
-};
+use http_over_ws::{GetHttpResponseResult, HttpRequest, HttpRequestId};
+use ic_cdk::{query, update};
 use ic_websocket_cdk::ClientPrincipal;
 use logger::log;
 
 #[query]
-fn get_http_request(request_id: HttpRequestId) -> Option<PrettyHttpRequest> {
+fn get_http_request(request_id: HttpRequestId) -> Option<HttpRequest> {
     http_over_ws::get_http_request(request_id)
 }
 

@@ -1,4 +1,4 @@
-use candid::Principal;
+use candid::{decode_one, encode_one, Principal};
 use http_over_ws::HttpOverWsMessage;
 
 use super::{
@@ -6,14 +6,13 @@ use super::{
     rand::generate_random_nonce,
 };
 use ic_websocket_cdk::{
-    CanisterWsCloseArguments, CanisterWsCloseResult, CanisterWsGetMessagesArguments,
-    CanisterWsGetMessagesResult, CanisterWsMessageArguments, CanisterWsMessageResult,
-    CanisterWsOpenArguments, CanisterWsOpenResult, ClientKey, WebsocketMessage,
+    CanisterOutputCertifiedMessages, CanisterWsCloseArguments, CanisterWsCloseResult,
+    CanisterWsGetMessagesArguments, CanisterWsGetMessagesResult, CanisterWsMessageArguments,
+    CanisterWsMessageResult, CanisterWsOpenArguments, CanisterWsOpenResult, ClientKey,
+    WebsocketMessage,
 };
 
-type WsMessageContentBytes = Vec<u8>;
-
-pub struct WsProxyClient<'a> {
+pub struct ProxyClient<'a> {
     test_env: &'a TestEnv,
     client_key: ClientKey,
     gateway_principal: Principal,
@@ -21,7 +20,7 @@ pub struct WsProxyClient<'a> {
     polling_nonce: u64,
 }
 
-impl<'a> WsProxyClient<'a> {
+impl<'a> ProxyClient<'a> {
     pub fn new(test_env: &'a TestEnv) -> Self {
         Self {
             test_env,
@@ -42,7 +41,13 @@ impl<'a> WsProxyClient<'a> {
         assert!(res.is_ok());
     }
 
-    pub fn send_ws_message(&mut self, message: WsMessageContentBytes) {
+    pub fn setup_proxy(&mut self) {
+        self.open_ws_connection();
+
+        self.send_http_over_ws_message(HttpOverWsMessage::SetupProxyClient);
+    }
+
+    pub fn send_ws_message(&mut self, message: Vec<u8>) {
         self.outgoing_messages_sequence_num += 1;
 
         let res: CanisterWsMessageResult = self.test_env.call_canister_method_with_panic(
@@ -60,23 +65,33 @@ impl<'a> WsProxyClient<'a> {
         assert!(res.is_ok());
     }
 
-    pub fn get_ws_messages(&mut self) -> Vec<WsMessageContentBytes> {
-        let res: CanisterWsGetMessagesResult = self.test_env.call_canister_method_with_panic(
-            self.client_key.client_principal,
+    pub fn send_http_over_ws_message(&mut self, message: HttpOverWsMessage) {
+        self.send_ws_message(encode_one(message).unwrap());
+    }
+
+    pub fn get_http_over_ws_messages(&mut self) -> Vec<HttpOverWsMessage> {
+        let res: CanisterWsGetMessagesResult = self.test_env.query_canister_method_with_panic(
+            self.gateway_principal,
             CanisterMethod::WsGetMessages,
             CanisterWsGetMessagesArguments::new(self.polling_nonce),
         );
 
         match res {
-            CanisterWsGetMessagesResult::Ok(messages) => {
-                self.polling_nonce += messages.messages.len() as u64;
+            CanisterWsGetMessagesResult::Ok(CanisterOutputCertifiedMessages {
+                messages, ..
+            }) => {
+                self.polling_nonce += messages.len() as u64;
 
                 messages
-                    .messages
-                    .into_iter()
+                    .iter()
                     .filter_map(|m| {
-                        // TODO: deserialize and check message
-                        Some(m.content)
+                        let msg: WebsocketMessage = serde_cbor::from_slice(&m.content).unwrap();
+
+                        if msg.is_service_message {
+                            None
+                        } else {
+                            Some(decode_one(&msg.content).unwrap())
+                        }
                     })
                     .collect()
             }

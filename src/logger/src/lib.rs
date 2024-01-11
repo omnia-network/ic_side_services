@@ -1,6 +1,6 @@
 use std::{cell::RefCell, time::Duration};
 
-use ic_cdk::api::time;
+use ic_cdk::{api::time, print};
 
 type LogDateTime = String;
 type LogMessage = String;
@@ -33,6 +33,7 @@ pub fn get_logs() -> Logs {
 }
 
 pub fn log(message: &str) {
+    print(message);
     LOGGER.with(|logger| {
         logger.borrow_mut().log(message);
     });

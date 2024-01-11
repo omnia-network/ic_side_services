@@ -25,3 +25,4 @@ pocket-ic = "2.0.1"
 ring = "0.16.20"
 ic-agent = "0.30.0"
 rand = "0.8.5"
+serde_cbor.workspace = true

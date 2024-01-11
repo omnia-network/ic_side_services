@@ -12,7 +12,9 @@ use crate::{
     sign_with_ecdsa, utils, NETWORK,
 };
 
-use http_over_ws::{execute_http_request, HttpMethod, HttpRequestId, HttpResponse, HttpOverWsError};
+use http_over_ws::{
+    execute_http_request, ExecuteHttpRequestResult, HttpMethod, HttpRequest, HttpResponse,
+};
 use logger::log;
 
 pub type ComposeSpec = GetAppPriceRequestComposeInner;
@@ -31,7 +33,7 @@ pub struct DeploymentInfo {
 }
 
 /// See https://docs.runonflux.io/#tag/Apps/operation/getAppPrice.
-pub fn calculate_app_price(deployment_info: DeploymentInfo) -> Result<HttpRequestId, HttpOverWsError> {
+pub fn calculate_app_price(deployment_info: DeploymentInfo) -> ExecuteHttpRequestResult {
     let calculateprice_url = FLUX_API_BASE_URL.join("/apps/calculateprice").unwrap();
 
     let body = GetAppPriceRequest {
@@ -70,18 +72,20 @@ pub fn calculate_app_price(deployment_info: DeploymentInfo) -> Result<HttpReques
     }
 
     execute_http_request(
-        calculateprice_url,
-        HttpMethod::POST,
-        vec![CONTENT_TYPE_TEXT_PLAIN_HEADER.deref().clone()],
-        Some(serde_json::to_string(&body).unwrap()),
+        HttpRequest::new(
+            calculateprice_url.as_str(),
+            HttpMethod::POST,
+            vec![CONTENT_TYPE_TEXT_PLAIN_HEADER.deref().clone()],
+            Some(serde_json::to_vec(&body).unwrap()),
+        ),
         Some(|res| Box::pin(calculateprice_cb(res))),
         Some(DEFAULT_HTTP_REQUEST_TIMEOUT_MS),
-        ic_websocket_cdk::send
+        ic_websocket_cdk::send,
     )
 }
 
 /// See https://docs.runonflux.io/#tag/Apps/operation/Appregister.
-pub async fn register_app(deployment_info: DeploymentInfo) -> Result<HttpRequestId, HttpOverWsError> {
+pub async fn register_app(deployment_info: DeploymentInfo) -> ExecuteHttpRequestResult {
     let zelidauth = get_zelidauth_or_trap();
     let appregister_url = FLUX_API_BASE_URL.join("/apps/appregister").unwrap();
 
@@ -138,14 +142,16 @@ pub async fn register_app(deployment_info: DeploymentInfo) -> Result<HttpRequest
     }
 
     execute_http_request(
-        appregister_url,
-        HttpMethod::POST,
-        vec![CONTENT_TYPE_TEXT_PLAIN_HEADER.deref().clone(), zelidauth],
-        Some(serde_json::to_string(&body).unwrap()),
+        HttpRequest::new(
+            appregister_url.as_str(),
+            HttpMethod::POST,
+            vec![CONTENT_TYPE_TEXT_PLAIN_HEADER.deref().clone(), zelidauth],
+            Some(serde_json::to_vec(&body).unwrap()),
+        ),
         Some(|res| Box::pin(appregister_cb(res))),
         // this request can take longer to complete due to the sign_with_ecdsa in the callback
         Some(2 * DEFAULT_HTTP_REQUEST_TIMEOUT_MS),
-        ic_websocket_cdk::send
+        ic_websocket_cdk::send,
     )
 }
 
@@ -165,7 +171,7 @@ struct DeploymentInformationResponse {
 }
 
 /// See https://docs.runonflux.io/#tag/Apps/operation/getDeploymentInformatio.
-pub fn fetch_deployment_information() -> Result<HttpRequestId, HttpOverWsError> {
+pub fn fetch_deployment_information() -> ExecuteHttpRequestResult {
     let deploymentinformation_url = FLUX_API_BASE_URL
         .join("/apps/deploymentinformation")
         .unwrap();
@@ -193,10 +199,12 @@ pub fn fetch_deployment_information() -> Result<HttpRequestId, HttpOverWsError> 
     }
 
     execute_http_request(
-        deploymentinformation_url,
-        HttpMethod::GET,
-        vec![CONTENT_TYPE_TEXT_PLAIN_HEADER.deref().clone()],
-        None,
+        HttpRequest::new(
+            deploymentinformation_url.as_str(),
+            HttpMethod::GET,
+            vec![CONTENT_TYPE_TEXT_PLAIN_HEADER.deref().clone()],
+            None,
+        ),
         Some(|res| Box::pin(deploymentinformation_cb(res))),
         Some(DEFAULT_HTTP_REQUEST_TIMEOUT_MS),
         ic_websocket_cdk::send,
