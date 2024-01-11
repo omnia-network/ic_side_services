@@ -1,15 +1,20 @@
-use std::cell::Cell;
 use base64::{engine::general_purpose, Engine};
 use ecdsa_api::{
     get_canister_ecdsa_public_key, set_canister_ecdsa_public_key, set_ecdsa_key_name,
     EcdsaPublicKey,
 };
-use flux_api::authentication::{get_zelidauth, set_zelidauth};
-use http_over_ws::{HttpOverWsMessage, HttpOverWsError, HttpRequestId};
-use ic_cdk::{init, post_upgrade, pre_upgrade, query, update, print};
 use flux::FluxNetwork;
-use ic_websocket_cdk::{WsInitParams, WsHandlers, OnCloseCallbackArgs, OnMessageCallbackArgs, OnOpenCallbackArgs, CanisterWsOpenArguments, CanisterWsOpenResult, CanisterWsCloseResult, CanisterWsCloseArguments, CanisterWsMessageArguments, CanisterWsMessageResult, CanisterWsGetMessagesArguments, CanisterWsGetMessagesResult};
+use flux_api::authentication::{get_zelidauth, set_zelidauth};
+use http_over_ws::{ExecuteHttpRequestResult, HttpOverWsMessage};
+use ic_cdk::{init, post_upgrade, pre_upgrade, print, query, update};
+use ic_websocket_cdk::{
+    CanisterWsCloseArguments, CanisterWsCloseResult, CanisterWsGetMessagesArguments,
+    CanisterWsGetMessagesResult, CanisterWsMessageArguments, CanisterWsMessageResult,
+    CanisterWsOpenArguments, CanisterWsOpenResult, OnCloseCallbackArgs, OnMessageCallbackArgs,
+    OnOpenCallbackArgs, WsHandlers, WsInitParams,
+};
 use logger::{log, Logs};
+use std::cell::Cell;
 
 mod ecdsa_api;
 mod flux;
@@ -37,16 +42,24 @@ fn on_open(args: OnOpenCallbackArgs) {
 }
 
 fn on_message(args: OnMessageCallbackArgs) {
-    if let Err(_) = http_over_ws::try_handle_http_over_ws_message(args.client_principal, args.message) {
+    if let Err(_) =
+        http_over_ws::try_handle_http_over_ws_message(args.client_principal, args.message)
+    {
         log("Received WS client message")
     }
 }
 
 fn on_close(args: OnCloseCallbackArgs) {
     if let Err(_) = http_over_ws::try_disconnect_http_proxy(args.client_principal) {
-        print(format!("WS client {:?} disconnected", args.client_principal));
+        print(format!(
+            "WS client {:?} disconnected",
+            args.client_principal
+        ));
     } else {
-        print(format!("Proxy client {:?} disconnected", args.client_principal));
+        print(format!(
+            "Proxy client {:?} disconnected",
+            args.client_principal
+        ));
     }
 }
 
@@ -143,17 +156,17 @@ async fn sign_with_ecdsa(message: String, derivation_path: Option<String>) -> St
 }
 
 #[update]
-fn flux_login() -> Result<HttpRequestId, HttpOverWsError> {
+fn flux_login() -> ExecuteHttpRequestResult {
     flux_api::authentication::login()
 }
 
 #[update]
-fn flux_logout() -> Result<HttpRequestId, HttpOverWsError> {
+fn flux_logout() -> ExecuteHttpRequestResult {
     flux_api::authentication::logout()
 }
 
 #[update]
-fn flux_fetch_balance() -> Result<HttpRequestId, HttpOverWsError> {
+fn flux_fetch_balance() -> ExecuteHttpRequestResult {
     flux_api::balance::fetch_balance()
 }
 
@@ -200,17 +213,17 @@ fn tmp_deployment_info() -> flux_api::deployment::DeploymentInfo {
 }
 
 #[update]
-fn flux_calculate_app_price() -> Result<HttpRequestId, HttpOverWsError> {
+fn flux_calculate_app_price() -> ExecuteHttpRequestResult {
     flux_api::deployment::calculate_app_price(tmp_deployment_info())
 }
 
 #[update]
-async fn flux_register_app() -> Result<HttpRequestId, HttpOverWsError> {
+async fn flux_register_app() -> ExecuteHttpRequestResult {
     flux_api::deployment::register_app(tmp_deployment_info()).await
 }
 
 #[update]
-fn flux_get_deployment_information() -> Result<HttpRequestId, HttpOverWsError> {
+fn flux_get_deployment_information() -> ExecuteHttpRequestResult {
     flux_api::deployment::fetch_deployment_information()
 }
 

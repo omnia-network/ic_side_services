@@ -4,10 +4,12 @@ use crate::{
     NETWORK,
 };
 
-use http_over_ws::{execute_http_request, HttpMethod, HttpRequestId, HttpResponse, HttpOverWsError};
+use http_over_ws::{
+    execute_http_request, ExecuteHttpRequestResult, HttpMethod, HttpRequest, HttpResponse,
+};
 use logger::log;
 
-pub fn fetch_balance() -> Result<HttpRequestId, HttpOverWsError> {
+pub fn fetch_balance() -> ExecuteHttpRequestResult {
     let mut balance_url = FLUX_API_BASE_URL.join("/explorer/balance").unwrap();
     balance_url.query_pairs_mut().append_pair(
         "address",
@@ -29,13 +31,10 @@ pub fn fetch_balance() -> Result<HttpRequestId, HttpOverWsError> {
     }
 
     execute_http_request(
-        balance_url,
-        HttpMethod::GET,
-        vec![],
-        None,
+        HttpRequest::new(balance_url.as_str(), HttpMethod::GET, vec![], None),
         Some(|res| Box::pin(balance_cb(res))),
         Some(DEFAULT_HTTP_REQUEST_TIMEOUT_MS),
-        ic_websocket_cdk::send
+        ic_websocket_cdk::send,
     )
 }
 

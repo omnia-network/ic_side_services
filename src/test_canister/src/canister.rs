@@ -1,11 +1,10 @@
 use http_over_ws::{
-    HttpFailureReason, HttpOverWsError, HttpRequest, HttpRequestId, HttpResponse,
-    PrettyHttpResponse,
+    ExecuteHttpRequestResult, GetHttpResponseResult, HttpOverWsError, HttpRequest, HttpRequestId,
+    HttpResponse,
 };
 use ic_cdk_macros::{query, update};
 use ic_websocket_cdk::{OnCloseCallbackArgs, OnMessageCallbackArgs, OnOpenCallbackArgs};
 use logger::log;
-use url::Url;
 
 pub fn on_open(args: OnOpenCallbackArgs) {
     log(&format!("WS client: {:?} connected", args.client_principal));
@@ -37,12 +36,9 @@ pub fn on_close(args: OnCloseCallbackArgs) {
 }
 
 #[update]
-fn execute_http_request(req: HttpRequest) -> Result<HttpRequestId, HttpOverWsError> {
+fn execute_http_request(req: HttpRequest) -> ExecuteHttpRequestResult {
     http_over_ws::execute_http_request(
-        Url::parse(&req.url).unwrap(),
-        req.method,
-        req.headers,
-        req.body.map(|b| String::from_utf8_lossy(&b).to_string()), // TODO: change execute_http_request to take Vec<u8>
+        req,
         Some(|res| Box::pin(callback(res))),
         Some(10_000),
         ic_websocket_cdk::send,
@@ -54,6 +50,6 @@ async fn callback(response: HttpResponse) {
 }
 
 #[query]
-fn get_http_response(id: HttpRequestId) -> Result<PrettyHttpResponse, HttpFailureReason> {
+fn get_http_response(id: HttpRequestId) -> GetHttpResponseResult {
     http_over_ws::get_http_response(id)
 }

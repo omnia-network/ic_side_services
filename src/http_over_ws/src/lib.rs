@@ -12,7 +12,6 @@ use ic_cdk::api::management_canister::http_request::{
 };
 use ic_cdk_timers::TimerId;
 use logger::log;
-use url::Url;
 
 pub type HttpRequestId = u32;
 
@@ -359,22 +358,14 @@ fn http_request_timeout(client_principal: Principal, request_id: HttpRequestId) 
     });
 }
 
+pub type ExecuteHttpRequestResult = Result<HttpRequestId, HttpOverWsError>;
+
 pub fn execute_http_request(
-    url: Url,
-    method: HttpMethod,
-    headers: Vec<HttpHeader>,
-    body: Option<String>,
+    req: HttpRequest,
     callback: Option<HttpCallback>,
     timeout_ms: Option<u64>,
     ws_send: fn(Principal, Vec<u8>) -> Result<(), String>,
-) -> Result<HttpRequestId, HttpOverWsError> {
-    let http_request = HttpRequest {
-        url: url.to_string(),
-        method,
-        headers,
-        body: body.map(|b| b.into_bytes()),
-    };
-
+) -> ExecuteHttpRequestResult {
     let request_id = HTTP_REQUESTS.with(|http_requests| http_requests.borrow().len() + 1) as u32;
 
     let assigned_client_principal = CONNECTED_CLIENTS
@@ -394,53 +385,29 @@ pub fn execute_http_request(
     HTTP_REQUESTS.with(|http_requests| {
         http_requests.borrow_mut().insert(
             request_id,
-            HttpRequestState::new(http_request.clone(), callback, timer_id),
+            HttpRequestState::new(req.clone(), callback, timer_id),
         );
     });
 
     ws_send(
         assigned_client_principal,
-        HttpOverWsMessage::HttpRequest(request_id, http_request).to_bytes(),
+        HttpOverWsMessage::HttpRequest(request_id, req).to_bytes(),
     )
     .unwrap();
 
     Ok(request_id)
 }
 
-#[derive(CandidType, Deserialize)]
-pub struct PrettyHttpRequest {
-    url: String,
-    method: HttpMethod,
-    headers: Vec<HttpHeader>,
-    body: Option<String>,
-}
-
-pub fn get_http_request(request_id: HttpRequestId) -> Option<PrettyHttpRequest> {
+pub fn get_http_request(request_id: HttpRequestId) -> Option<HttpRequest> {
     HTTP_REQUESTS.with(|http_requests| {
         http_requests
             .borrow()
             .get(&request_id)
-            .map(|r| PrettyHttpRequest {
-                url: r.request.url.clone(),
-                method: r.request.method.clone(),
-                headers: r.request.headers.clone(),
-                body: r
-                    .request
-                    .body
-                    .as_ref()
-                    .map(|b| String::from_utf8_lossy(b).to_string()),
-            })
+            .map(|r| r.request.to_owned())
     })
 }
 
-#[derive(CandidType, Deserialize)]
-pub struct PrettyHttpResponse {
-    status: candid::Nat,
-    headers: Vec<HttpHeader>,
-    body: String,
-}
-
-pub type GetHttpResponseResult = Result<PrettyHttpResponse, HttpFailureReason>;
+pub type GetHttpResponseResult = Result<HttpResponse, HttpFailureReason>;
 
 pub fn get_http_response(request_id: HttpRequestId) -> GetHttpResponseResult {
     HTTP_REQUESTS.with(|http_requests| {
@@ -456,11 +423,7 @@ pub fn get_http_response(request_id: HttpRequestId) -> GetHttpResponseResult {
                             .clone()
                             .unwrap_or(HttpFailureReason::Unknown),
                     )
-                    .map(|res| PrettyHttpResponse {
-                        status: res.status.clone(),
-                        headers: res.headers.clone(),
-                        body: String::from_utf8_lossy(&res.body).to_string(),
-                    })
+                    .cloned()
             })?
     })
 }

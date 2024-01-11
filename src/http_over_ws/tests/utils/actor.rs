@@ -1,9 +1,7 @@
 use std::fmt;
 
 use candid::Principal;
-use http_over_ws::{
-    HttpFailureReason, HttpOverWsError, HttpRequest, HttpRequestId, PrettyHttpResponse,
-};
+use http_over_ws::{ExecuteHttpRequestResult, GetHttpResponseResult, HttpRequest, HttpRequestId};
 
 use super::{ic_env::TestEnv, identity::generate_random_principal};
 
@@ -42,10 +40,7 @@ impl<'a> CanisterActor<'a> {
         }
     }
 
-    pub fn call_execute_http_request(
-        &self,
-        args: HttpRequest,
-    ) -> Result<HttpRequestId, HttpOverWsError> {
+    pub fn call_execute_http_request(&self, args: HttpRequest) -> ExecuteHttpRequestResult {
         self.test_env.call_canister_method_with_panic(
             self.principal,
             CanisterMethod::ExecuteHttpRequest,
@@ -53,10 +48,7 @@ impl<'a> CanisterActor<'a> {
         )
     }
 
-    pub fn query_get_http_response(
-        &self,
-        request_id: HttpRequestId,
-    ) -> Result<PrettyHttpResponse, HttpFailureReason> {
+    pub fn query_get_http_response(&self, request_id: HttpRequestId) -> GetHttpResponseResult {
         self.test_env.query_canister_method_with_panic(
             self.principal,
             CanisterMethod::GetHttpResponse,

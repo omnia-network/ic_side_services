@@ -11,10 +11,13 @@ use crate::{
     sign_with_ecdsa, NETWORK,
 };
 
-use http_over_ws::{execute_http_request, HttpHeader, HttpMethod, HttpRequestId, HttpResponse, HttpOverWsError};
+use http_over_ws::{
+    execute_http_request, ExecuteHttpRequestResult, HttpHeader, HttpMethod, HttpRequest,
+    HttpResponse,
+};
 use logger::log;
 
-pub fn login() -> Result<HttpRequestId, HttpOverWsError> {
+pub fn login() -> ExecuteHttpRequestResult {
     let loginphrase_url = FLUX_API_BASE_URL.join("/id/loginphrase").unwrap();
 
     async fn verifylogin_cb(res: HttpResponse) {
@@ -65,30 +68,34 @@ pub fn login() -> Result<HttpRequestId, HttpOverWsError> {
 
         let verifylogin_url = FLUX_API_BASE_URL.join("/id/verifylogin").unwrap();
 
-        execute_http_request(
-            verifylogin_url,
-            HttpMethod::POST,
-            vec![CONTENT_TYPE_TEXT_PLAIN_HEADER.deref().clone()],
-            Some(serde_json::to_string(&body).unwrap()),
+        let _ = execute_http_request(
+            HttpRequest::new(
+                verifylogin_url.as_str(),
+                HttpMethod::POST,
+                vec![CONTENT_TYPE_TEXT_PLAIN_HEADER.deref().clone()],
+                Some(serde_json::to_vec(&body).unwrap()),
+            ),
             Some(|res| Box::pin(verifylogin_cb(res))),
             Some(DEFAULT_HTTP_REQUEST_TIMEOUT_MS),
-            ic_websocket_cdk::send
+            ic_websocket_cdk::send,
         );
     }
 
     execute_http_request(
-        loginphrase_url,
-        HttpMethod::GET,
-        vec![CONTENT_TYPE_TEXT_PLAIN_HEADER.deref().clone()],
-        None,
+        HttpRequest::new(
+            loginphrase_url.as_str(),
+            HttpMethod::GET,
+            vec![CONTENT_TYPE_TEXT_PLAIN_HEADER.deref().clone()],
+            None,
+        ),
         Some(|res| Box::pin(loginphrase_cb(res))),
         // this request can take longer to complete due to the sign_with_ecdsa in the callback
         Some(2 * DEFAULT_HTTP_REQUEST_TIMEOUT_MS),
-        ic_websocket_cdk::send
+        ic_websocket_cdk::send,
     )
 }
 
-pub fn logout() -> Result<HttpRequestId, HttpOverWsError> {
+pub fn logout() -> ExecuteHttpRequestResult {
     let zelidauth = get_zelidauth_or_trap();
     let logout_url = FLUX_API_BASE_URL.join("/id/logoutcurrentsession").unwrap();
 
@@ -104,13 +111,10 @@ pub fn logout() -> Result<HttpRequestId, HttpOverWsError> {
     }
 
     execute_http_request(
-        logout_url,
-        HttpMethod::GET,
-        vec![zelidauth],
-        None,
+        HttpRequest::new(logout_url.as_str(), HttpMethod::GET, vec![zelidauth], None),
         Some(|res| Box::pin(logout_cb(res))),
         Some(DEFAULT_HTTP_REQUEST_TIMEOUT_MS),
-        ic_websocket_cdk::send
+        ic_websocket_cdk::send,
     )
 }
 
