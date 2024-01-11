@@ -1,6 +1,6 @@
 mod utils;
 
-use http_over_ws::{HttpMethod, HttpOverWsMessage, HttpRequest, HttpRequestFailureReason};
+use http_over_ws::{HttpFailureReason, HttpMethod, HttpOverWsMessage, HttpRequest};
 use utils::{actor::CanisterActor, constants::TEST_HEADER, ic_env, proxy_client::ProxyClient};
 
 use crate::utils::constants::TEST_URL;
@@ -15,7 +15,9 @@ fn test_execute_http_request() {
 
     let request = HttpRequest::new(TEST_URL, HttpMethod::GET, vec![TEST_HEADER.clone()], None);
 
-    let request_id = canister_actor.call_execute_http_request(request.clone());
+    let request_id = canister_actor
+        .call_execute_http_request(request.clone())
+        .unwrap();
 
     let proxy_messages = proxy_client.get_http_over_ws_messages();
     assert_eq!(
@@ -24,8 +26,5 @@ fn test_execute_http_request() {
     );
 
     let http_response = canister_actor.query_get_http_response(request_id);
-    assert!(matches!(
-        http_response,
-        Err(HttpRequestFailureReason::Unknown)
-    ));
+    assert!(matches!(http_response, Err(HttpFailureReason::Unknown)));
 }

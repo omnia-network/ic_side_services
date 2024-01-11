@@ -1,5 +1,5 @@
 use http_over_ws::{
-    HttpOverWsError, HttpRequest, HttpRequestFailureReason, HttpRequestId, HttpResponse,
+    HttpFailureReason, HttpOverWsError, HttpRequest, HttpRequestId, HttpResponse,
     PrettyHttpResponse,
 };
 use ic_cdk_macros::{query, update};
@@ -37,12 +37,7 @@ pub fn on_close(args: OnCloseCallbackArgs) {
 }
 
 #[update]
-fn execute_http_request(
-    url: String,
-    method: HttpMethod,
-    headers: Vec<HttpHeader>,
-    body: Option<String>,
-) -> Result<u32, HttpOverWsError> {
+fn execute_http_request(req: HttpRequest) -> Result<HttpRequestId, HttpOverWsError> {
     http_over_ws::execute_http_request(
         Url::parse(&req.url).unwrap(),
         req.method,
@@ -59,6 +54,6 @@ async fn callback(response: HttpResponse) {
 }
 
 #[query]
-fn get_http_response(id: HttpRequestId) -> Result<PrettyHttpResponse, HttpRequestFailureReason> {
+fn get_http_response(id: HttpRequestId) -> Result<PrettyHttpResponse, HttpFailureReason> {
     http_over_ws::get_http_response(id)
 }
