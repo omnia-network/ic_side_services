@@ -1,10 +1,16 @@
+use std::cell::RefCell;
+
 use http_over_ws::{
     ExecuteHttpRequestResult, GetHttpResponseResult, HttpOverWsError, HttpRequest, HttpRequestId,
-    HttpResponse,
+    HttpRequestTimeoutMs, HttpResponse,
 };
 use ic_cdk_macros::{query, update};
 use ic_websocket_cdk::{OnCloseCallbackArgs, OnMessageCallbackArgs, OnOpenCallbackArgs};
 use logger::log;
+
+thread_local! {
+    /* flexible */ static CALLBACK_RESPONSES: RefCell<Vec<HttpResponse>> = RefCell::new(Vec::new());
+}
 
 pub fn on_open(args: OnOpenCallbackArgs) {
     log(&format!("WS client: {:?} connected", args.client_principal));
@@ -36,20 +42,29 @@ pub fn on_close(args: OnCloseCallbackArgs) {
 }
 
 #[update]
-fn execute_http_request(req: HttpRequest) -> ExecuteHttpRequestResult {
+fn execute_http_request(
+    req: HttpRequest,
+    timeout_ms: Option<HttpRequestTimeoutMs>,
+    with_callback: bool,
+) -> ExecuteHttpRequestResult {
     http_over_ws::execute_http_request(
         req,
-        Some(|res| Box::pin(callback(res))),
-        Some(10_000),
+        with_callback.then_some(|res| Box::pin(callback(res))),
+        timeout_ms,
         ic_websocket_cdk::send,
     )
 }
 
 async fn callback(response: HttpResponse) {
-    log(&format!("Response: {:?}", response));
+    CALLBACK_RESPONSES.with(|responses| responses.borrow_mut().push(response));
 }
 
 #[query]
 fn get_http_response(id: HttpRequestId) -> GetHttpResponseResult {
     http_over_ws::get_http_response(id)
+}
+
+#[query]
+fn get_callback_responses() -> Vec<HttpResponse> {
+    CALLBACK_RESPONSES.with(|responses| responses.borrow().clone())
 }

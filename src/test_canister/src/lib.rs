@@ -1,13 +1,12 @@
-use ic_cdk_macros::*;
-use logger::Logs;
 use candid::CandidType;
-use canister::{on_open, on_close, on_message};
-use ic_websocket_cdk::{CanisterWsCloseArguments, CanisterWsCloseResult,
-    CanisterWsGetMessagesArguments, CanisterWsGetMessagesResult, CanisterWsMessageArguments,
-    CanisterWsMessageResult, CanisterWsOpenArguments, CanisterWsOpenResult,
-    WsHandlers, WsInitParams,
+use canister::{on_close, on_message, on_open};
+use ic_cdk_macros::*;
+use ic_websocket_cdk::{
+    CanisterWsCloseArguments, CanisterWsCloseResult, CanisterWsGetMessagesArguments,
+    CanisterWsGetMessagesResult, CanisterWsMessageArguments, CanisterWsMessageResult,
+    CanisterWsOpenArguments, CanisterWsOpenResult, WsHandlers, WsInitParams,
 };
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 mod canister;
 
@@ -19,11 +18,6 @@ fn init() {
 #[post_upgrade]
 fn post_upgrade() {
     init();
-}
-
-#[query]
-fn get_logs() -> Logs {
-    logger::get_logs()
 }
 
 #[derive(CandidType, Serialize, Deserialize)]

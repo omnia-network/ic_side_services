@@ -7,14 +7,6 @@
       "declarations": {
         "output": "./ic-http-request-executor/src/canister/declarations/ic_side_services_backend"
       }
-    },
-    "test_canister": {
-      "candid": "src/test_canister/test_canister.did",
-      "package": "test_canister",
-      "type": "rust",
-      "declarations": {
-        "output": "./ic-http-request-executor/src/canister/declarations/test_canister"
-      }
     }
   },
   "defaults": {

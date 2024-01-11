@@ -31,8 +31,7 @@ pub fn try_handle_http_over_ws_message(
             Ok(())
         }
         HttpOverWsMessage::HttpResponse(request_id, response) => {
-            handle_http_response(client_principal, request_id, response)?;
-            Ok(())
+            handle_http_response(client_principal, request_id, response)
         }
         HttpOverWsMessage::Error(request_id, err) => {
             let e = format!("http_over_ws: incoming error: {}", err);
@@ -97,19 +96,15 @@ fn handle_http_response(
             ))?;
         r.response = Some(response.clone());
 
-        // response has been received, clear the timer
-        let timer_id = r
-            .timer_id
-            .take()
-            .ok_or(HttpOverWsError::InvalidHttpMessage(
-                HttpFailureReason::TimerNotSet,
-            ))?;
-        ic_cdk_timers::clear_timer(timer_id);
+        // response has been received, clear the timer if it was set
+        if let Some(timer_id) = r.timer_id.take() {
+            ic_cdk_timers::clear_timer(timer_id);
+        }
 
-        let callback = r.callback.ok_or(HttpOverWsError::InvalidHttpMessage(
-            HttpFailureReason::CallbackNotSet,
-        ))?;
-        ic_cdk::spawn(async move { callback(response).await });
+        // if a callback was set, execute it
+        if let Some(callback) = r.callback {
+            ic_cdk::spawn(async move { callback(response).await });
+        }
 
         Ok(())
     })?;
@@ -153,7 +148,7 @@ fn http_request_timeout(client_principal: Principal, request_id: HttpRequestId) 
 pub fn execute_http_request(
     req: HttpRequest,
     callback: Option<HttpCallback>,
-    timeout_ms: Option<u64>,
+    timeout_ms: Option<HttpRequestTimeoutMs>,
     ws_send: fn(Principal, Vec<u8>) -> Result<(), String>,
 ) -> ExecuteHttpRequestResult {
     let request_id = HTTP_REQUESTS.with(|http_requests| http_requests.borrow().len() + 1) as u32;
@@ -162,15 +157,14 @@ pub fn execute_http_request(
         .with(|clients| clients.borrow_mut().assign_request(request_id))
         .map_err(|e| HttpOverWsError::InvalidHttpMessage(e))?;
 
-    let timer_id = match timeout_ms {
-        Some(millis) => Some(ic_cdk_timers::set_timer(
+    let timer_id = timeout_ms.and_then(|millis| {
+        Some(ic_cdk_timers::set_timer(
             Duration::from_millis(millis),
             move || {
                 http_request_timeout(assigned_client_principal, request_id);
             },
-        )),
-        None => None,
-    };
+        ))
+    });
 
     HTTP_REQUESTS.with(|http_requests| {
         http_requests.borrow_mut().insert(
