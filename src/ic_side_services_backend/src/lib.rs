@@ -1,16 +1,15 @@
 use std::cell::Cell;
-
 use base64::{engine::general_purpose, Engine};
 use ecdsa_api::{
     get_canister_ecdsa_public_key, set_canister_ecdsa_public_key, set_ecdsa_key_name,
     EcdsaPublicKey,
 };
 use flux_api::authentication::{get_zelidauth, set_zelidauth};
+use http_over_ws::HttpOverWsMessage;
 use ic_cdk::{init, post_upgrade, pre_upgrade, query, update};
-
 use flux::FluxNetwork;
+use ic_websocket_cdk::{WsInitParams, WsHandlers, OnCloseCallbackArgs, OnMessageCallbackArgs, OnOpenCallbackArgs, CanisterWsOpenArguments, CanisterWsOpenResult, CanisterWsCloseResult, CanisterWsCloseArguments, CanisterWsMessageArguments, CanisterWsMessageResult, CanisterWsGetMessagesArguments, CanisterWsGetMessagesResult};
 use logger::{log, Logs};
-use http_over_ws::init_ws;
 
 mod ecdsa_api;
 mod flux;
@@ -21,6 +20,30 @@ mod utils;
 thread_local! {
     /// The Flux network to connect to.
     /* stable */ static NETWORK: Cell<FluxNetwork> = Cell::new(FluxNetwork::Local);
+}
+
+fn init_ws() {
+    let params = WsInitParams::new(WsHandlers {
+        on_open: Some(on_open),
+        on_message: Some(on_message),
+        on_close: Some(on_close),
+    });
+
+    ic_websocket_cdk::init(params);
+}
+
+fn on_open(args: OnOpenCallbackArgs) {
+    http_over_ws::on_open(args.client_principal);
+}
+
+fn on_message(args: OnMessageCallbackArgs) {
+    if let Err(_) = http_over_ws::try_handle_http_over_ws_message(args.client_principal, args.message, ic_websocket_cdk::send) {
+        log("Received WS client message")
+    }
+}
+
+fn on_close(args: OnCloseCallbackArgs) {
+    http_over_ws::on_close(args.client_principal);
 }
 
 #[init]
@@ -56,6 +79,33 @@ fn post_upgrade() {
     init(network);
     set_canister_ecdsa_public_key(ecdsa_pub_key);
     set_zelidauth(zelidauth);
+}
+
+// method called by the WS Gateway after receiving FirstMessage from the client
+#[update]
+pub fn ws_open(args: CanisterWsOpenArguments) -> CanisterWsOpenResult {
+    ic_websocket_cdk::ws_open(args)
+}
+
+// method called by the Ws Gateway when closing the IcWebSocket connection
+#[update]
+pub fn ws_close(args: CanisterWsCloseArguments) -> CanisterWsCloseResult {
+    ic_websocket_cdk::ws_close(args)
+}
+
+// method called by the WS Gateway to send a message of type GatewayMessage to the canister
+#[update]
+pub fn ws_message(
+    args: CanisterWsMessageArguments,
+    msg_type: Option<HttpOverWsMessage>,
+) -> CanisterWsMessageResult {
+    ic_websocket_cdk::ws_message(args, msg_type)
+}
+
+// method called by the WS Gateway to get messages for all the clients it serves
+#[query]
+pub fn ws_get_messages(args: CanisterWsGetMessagesArguments) -> CanisterWsGetMessagesResult {
+    ic_websocket_cdk::ws_get_messages(args)
 }
 
 /// Sets the ECDSA public key by fetching it from the ECDSA API.

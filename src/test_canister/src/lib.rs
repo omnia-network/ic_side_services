@@ -1,12 +1,10 @@
-use candid::Principal;
 use ic_cdk_macros::*;
 use logger::Logs;
 use candid::CandidType;
 use canister::{on_open, on_close, on_message};
-use ic_websocket_cdk::{
-    CanisterCloseResult, CanisterSendResult, CanisterWsCloseArguments, CanisterWsCloseResult,
+use ic_websocket_cdk::{CanisterWsCloseArguments, CanisterWsCloseResult,
     CanisterWsGetMessagesArguments, CanisterWsGetMessagesResult, CanisterWsMessageArguments,
-    CanisterWsMessageResult, CanisterWsOpenArguments, CanisterWsOpenResult, ClientPrincipal,
+    CanisterWsMessageResult, CanisterWsOpenArguments, CanisterWsOpenResult,
     WsHandlers, WsInitParams,
 };
 use serde::{Serialize, Deserialize};
@@ -68,23 +66,4 @@ pub fn ws_message(
 #[query]
 pub fn ws_get_messages(args: CanisterWsGetMessagesArguments) -> CanisterWsGetMessagesResult {
     ic_websocket_cdk::ws_get_messages(args)
-}
-
-//// Debug/tests methods
-// send a message to the client, usually called by the canister itself
-#[update]
-pub fn send(client_principal: ClientPrincipal, messages: Vec<Vec<u8>>) -> CanisterSendResult {
-    for msg_bytes in messages {
-        match ic_websocket_cdk::send(client_principal, msg_bytes) {
-            Ok(_) => {},
-            Err(e) => return Err(e),
-        }
-    }
-    Ok(())
-}
-
-// close the connection with a client, usually called by the canister itself
-#[update]
-pub fn close(client_principal: ClientPrincipal) -> CanisterCloseResult {
-    ic_websocket_cdk::close(client_principal)
 }

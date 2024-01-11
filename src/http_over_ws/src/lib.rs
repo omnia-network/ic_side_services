@@ -11,7 +11,7 @@ use ic_cdk::{
     api::management_canister::http_request::{
         HttpHeader as ApiHttpHeader, HttpResponse as ApiHttpResponse,
     },
-    query, trap, update,
+    trap,
 };
 use ic_cdk_timers::TimerId;
 use logger::log;
@@ -404,7 +404,8 @@ pub fn execute_http_request(
             ws_send(
                 assigned_client_principal,
                 HttpOverWsMessage::HttpRequest(request_id, http_request).to_bytes(),
-            );
+            )
+            .unwrap();
         }
         Err(e) => {
             trap(&e);

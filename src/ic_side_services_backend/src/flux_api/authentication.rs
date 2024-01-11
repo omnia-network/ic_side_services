@@ -72,6 +72,7 @@ pub fn login() -> HttpRequestId {
             Some(serde_json::to_string(&body).unwrap()),
             Some(|res| Box::pin(verifylogin_cb(res))),
             Some(DEFAULT_HTTP_REQUEST_TIMEOUT_MS),
+            ic_websocket_cdk::send
         );
     }
 
@@ -83,6 +84,7 @@ pub fn login() -> HttpRequestId {
         Some(|res| Box::pin(loginphrase_cb(res))),
         // this request can take longer to complete due to the sign_with_ecdsa in the callback
         Some(2 * DEFAULT_HTTP_REQUEST_TIMEOUT_MS),
+        ic_websocket_cdk::send
     )
 }
 
@@ -108,6 +110,7 @@ pub fn logout() -> HttpRequestId {
         None,
         Some(|res| Box::pin(logout_cb(res))),
         Some(DEFAULT_HTTP_REQUEST_TIMEOUT_MS),
+        ic_websocket_cdk::send
     )
 }
 
