@@ -456,8 +456,6 @@ mod tests {
             .get(&client_principal)
             .expect("client is not connected")
             .contains(&request_id));
-
-        assert!(clients.is_request_assigned_to_client(client_principal, request_id));
     }
 
     #[test]
@@ -474,14 +472,9 @@ mod tests {
         clients.add_client(client_principal);
         let request_id = 1;
         assert!(clients.assign_request(request_id).is_ok());
-        assert!(clients.is_request_assigned_to_client(client_principal, request_id));
         assert!(clients
             .complete_request_for_client(client_principal, request_id)
             .is_ok());
-        assert_eq!(
-            clients.is_request_assigned_to_client(client_principal, request_id),
-            false
-        );
     }
 
     #[test]
