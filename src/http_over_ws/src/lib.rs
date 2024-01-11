@@ -14,7 +14,12 @@ use ic_cdk::{
     query, trap, update,
 };
 use ic_cdk_timers::TimerId;
-use ic_websocket_cdk::{ClientPrincipal, OnMessageCallbackArgs, OnOpenCallbackArgs, OnCloseCallbackArgs, CanisterWsOpenResult, CanisterWsOpenArguments, CanisterWsCloseResult, CanisterWsCloseArguments, WsInitParams, WsHandlers, CanisterWsMessageArguments, CanisterWsMessageResult, CanisterWsGetMessagesArguments, CanisterWsGetMessagesResult};
+use ic_websocket_cdk::{
+    CanisterWsCloseArguments, CanisterWsCloseResult, CanisterWsGetMessagesArguments,
+    CanisterWsGetMessagesResult, CanisterWsMessageArguments, CanisterWsMessageResult,
+    CanisterWsOpenArguments, CanisterWsOpenResult, ClientPrincipal, OnCloseCallbackArgs,
+    OnMessageCallbackArgs, OnOpenCallbackArgs, WsHandlers, WsInitParams,
+};
 use logger::log;
 use url::Url;
 
@@ -37,6 +42,22 @@ pub struct HttpRequest {
     method: HttpMethod,
     headers: Vec<HttpHeader>,
     body: Option<Vec<u8>>,
+}
+
+impl HttpRequest {
+    pub fn new(
+        url: &str,
+        method: HttpMethod,
+        headers: Vec<HttpHeader>,
+        body: Option<Vec<u8>>,
+    ) -> Self {
+        HttpRequest {
+            url: url.to_string(),
+            method,
+            headers,
+            body,
+        }
+    }
 }
 
 pub type HttpResponse = ApiHttpResponse;
@@ -116,7 +137,14 @@ impl ConnectedClients {
         // where connected_clients_count is the number of clients currently connected.
         // as no client is removed while executing this method,
         // the entry at 'chosen_client_index' is guaranteed to exist
-        Some(self.0.iter().nth(chosen_client_index).expect("client must be connected").0.clone())
+        Some(
+            self.0
+                .iter()
+                .nth(chosen_client_index)
+                .expect("client must be connected")
+                .0
+                .clone(),
+        )
     }
 
     pub fn get_connected_clients(&self) -> Vec<ClientPrincipal> {
@@ -137,8 +165,10 @@ impl ConnectedClients {
     pub fn assign_request(&mut self, request_id: HttpRequestId) -> Result<ClientPrincipal, String> {
         // pick an arbitrary client
         // TODO: check whether keys are returned in arbitrary order
-        let client_principal = self.get_client_for_request(request_id)
-            .ok_or(String::from("no clients connected"))?.clone();
+        let client_principal = self
+            .get_client_for_request(request_id)
+            .ok_or(String::from("no clients connected"))?
+            .clone();
         self.assign_request_to_client(&client_principal, request_id);
         Ok(client_principal)
     }
@@ -159,8 +189,9 @@ impl ConnectedClients {
         client_principal: ClientPrincipal,
         request_id: HttpRequestId,
     ) -> Result<(), String> {
-        let client = self.0.get_mut(&client_principal)
-            .ok_or(String::from("only requests assigned to connected client can be completed"))?;
+        let client = self.0.get_mut(&client_principal).ok_or(String::from(
+            "only requests assigned to connected client can be completed",
+        ))?;
         if !client.remove(&request_id) {
             return Err(String::from("client has not been assigned the request"));
         }
@@ -168,7 +199,9 @@ impl ConnectedClients {
     }
 
     pub fn remove_client(&mut self, client_principal: &ClientPrincipal) -> Result<(), String> {
-        self.0.remove(client_principal).ok_or(String::from("client not connected"))?;
+        self.0
+            .remove(client_principal)
+            .ok_or(String::from("client not connected"))?;
         Ok(())
     }
 }
@@ -182,7 +215,10 @@ pub fn on_open(args: OnOpenCallbackArgs) {
     CONNECTED_CLIENTS.with(|clients| {
         clients.borrow_mut().add_client(args.client_principal);
     });
-    log(&format!("http_over_ws: Client {} connected", args.client_principal))
+    log(&format!(
+        "http_over_ws: Client {} connected",
+        args.client_principal
+    ))
 }
 
 pub fn on_message(args: OnMessageCallbackArgs) {
@@ -208,7 +244,7 @@ pub fn on_message(args: OnMessageCallbackArgs) {
             if let Err(e) = handle_http_response(client_principal, request_id, response) {
                 log(&e);
             }
-        },
+        }
         HttpOverWsMessage::Error(request_id, err) => {
             log(&format!("http_over_ws: incoming error: {}", err));
 
@@ -246,10 +282,18 @@ pub fn get_connected_clients() -> ConnectedClients {
 }
 
 pub fn get_connected_client_principals() -> Vec<Principal> {
-    get_connected_clients().0.keys().cloned().collect::<Vec<_>>()
+    get_connected_clients()
+        .0
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>()
 }
 
-fn handle_http_response(client_principal: Principal, request_id: HttpRequestId, response: HttpResponse) -> Result<(), String> {
+fn handle_http_response(
+    client_principal: Principal,
+    request_id: HttpRequestId,
+    response: HttpResponse,
+) -> Result<(), String> {
     if CONNECTED_CLIENTS.with(|clients| {
         clients
             .borrow()
@@ -258,7 +302,9 @@ fn handle_http_response(client_principal: Principal, request_id: HttpRequestId, 
         // assign response to a previous request
         HTTP_REQUESTS.with(|http_requests| -> Result<(), String> {
             let mut h = http_requests.borrow_mut();
-            let r = h.get_mut(&request_id).ok_or(String::from("request not found"))?;
+            let r = h
+                .get_mut(&request_id)
+                .ok_or(String::from("request not found"))?;
             r.response = Some(response.clone());
 
             // response has been received, clear the timer
@@ -267,7 +313,7 @@ fn handle_http_response(client_principal: Principal, request_id: HttpRequestId, 
 
             let callback = r.callback.ok_or(String::from("callback not set"))?;
             ic_cdk::spawn(async move { callback(response).await });
-            
+
             Ok(())
         })?;
 
@@ -344,14 +390,14 @@ pub fn execute_http_request(
                 )),
                 None => None,
             };
-    
+
             HTTP_REQUESTS.with(|http_requests| {
                 http_requests.borrow_mut().insert(
                     request_id,
                     HttpRequestState::new(http_request.clone(), callback, timer_id),
                 );
             });
-    
+
             send_ws_message(
                 assigned_client_principal,
                 HttpOverWsMessage::HttpRequest(request_id, http_request),
@@ -399,7 +445,6 @@ pub struct PrettyHttpResponse {
 }
 
 pub type GetHttpResponseResult = Result<PrettyHttpResponse, HttpRequestFailureReason>;
-
 
 pub fn get_http_response(request_id: HttpRequestId) -> GetHttpResponseResult {
     HTTP_REQUESTS.with(|http_requests| {
@@ -484,7 +529,11 @@ mod tests {
 
         let request_id = 1;
         assert!(clients.assign_request(request_id).is_ok());
-        assert!(clients.0.get(&client_principal).expect("client must be connected").contains(&request_id));
+        assert!(clients
+            .0
+            .get(&client_principal)
+            .expect("client must be connected")
+            .contains(&request_id));
 
         assert!(clients.is_request_assigned_to_client(client_principal, request_id));
     }
@@ -504,8 +553,13 @@ mod tests {
         let request_id = 1;
         assert!(clients.assign_request(request_id).is_ok());
         assert!(clients.is_request_assigned_to_client(client_principal, request_id));
-        assert!(clients.complete_request_for_client(client_principal, request_id).is_ok());
-        assert_eq!(clients.is_request_assigned_to_client(client_principal, request_id), false);
+        assert!(clients
+            .complete_request_for_client(client_principal, request_id)
+            .is_ok());
+        assert_eq!(
+            clients.is_request_assigned_to_client(client_principal, request_id),
+            false
+        );
     }
 
     #[test]
@@ -530,7 +584,21 @@ mod tests {
         let request_id = 4;
         assert!(clients.assign_request(request_id).is_ok());
 
-        assert!(clients.0.get(&client_principal).expect("client must be connected").len() == 2);
-        assert!(clients.0.get(&another_client_principal).expect("client must be connected").len() == 2);
+        assert!(
+            clients
+                .0
+                .get(&client_principal)
+                .expect("client must be connected")
+                .len()
+                == 2
+        );
+        assert!(
+            clients
+                .0
+                .get(&another_client_principal)
+                .expect("client must be connected")
+                .len()
+                == 2
+        );
     }
 }

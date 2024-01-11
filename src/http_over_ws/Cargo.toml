@@ -20,6 +20,8 @@ sha2 = "0.10.8"
 url = { workspace = true }
 logger = { path = "../logger" }
 
-
-
-
+[dev-dependencies]
+pocket-ic = "2.0.1"
+ring = "0.16.20"
+ic-agent = "0.30.0"
+rand = "0.8.5"
