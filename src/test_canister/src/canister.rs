@@ -8,7 +8,7 @@ use logger::log;
 use url::Url;
 
 pub fn on_open(args: OnOpenCallbackArgs) {
-    log(&format!("Client: {:?} connected", args.client_principal));
+    log(&format!("WS client: {:?} connected", args.client_principal));
 }
 
 pub fn on_message(args: OnMessageCallbackArgs) {
@@ -23,11 +23,26 @@ pub fn on_message(args: OnMessageCallbackArgs) {
 }
 
 pub fn on_close(args: OnCloseCallbackArgs) {
-    http_over_ws::on_close(args.client_principal);
+    if let Err(_) = http_over_ws::try_disconnect_http_proxy(args.client_principal) {
+        log(&format!(
+            "WS client {:?} disconnected",
+            args.client_principal
+        ));
+    } else {
+        log(&format!(
+            "Proxy client {:?} disconnected",
+            args.client_principal
+        ));
+    }
 }
 
 #[update]
-fn execute_http_request(req: HttpRequest) -> u32 {
+fn execute_http_request(
+    url: String,
+    method: HttpMethod,
+    headers: Vec<HttpHeader>,
+    body: Option<String>,
+) -> Result<u32, HttpOverWsError> {
     http_over_ws::execute_http_request(
         Url::parse(&req.url).unwrap(),
         req.method,

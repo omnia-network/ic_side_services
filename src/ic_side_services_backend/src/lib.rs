@@ -5,7 +5,7 @@ use ecdsa_api::{
     EcdsaPublicKey,
 };
 use flux_api::authentication::{get_zelidauth, set_zelidauth};
-use http_over_ws::HttpOverWsMessage;
+use http_over_ws::{HttpOverWsMessage, HttpOverWsError, HttpRequestId};
 use ic_cdk::{init, post_upgrade, pre_upgrade, query, update, print};
 use flux::FluxNetwork;
 use ic_websocket_cdk::{WsInitParams, WsHandlers, OnCloseCallbackArgs, OnMessageCallbackArgs, OnOpenCallbackArgs, CanisterWsOpenArguments, CanisterWsOpenResult, CanisterWsCloseResult, CanisterWsCloseArguments, CanisterWsMessageArguments, CanisterWsMessageResult, CanisterWsGetMessagesArguments, CanisterWsGetMessagesResult};
@@ -33,7 +33,7 @@ fn init_ws() {
 }
 
 fn on_open(args: OnOpenCallbackArgs) {
-    print(format!("Client: {:?} connected", args.client_principal));
+    print(format!("Ws client: {:?} connected", args.client_principal));
 }
 
 fn on_message(args: OnMessageCallbackArgs) {
@@ -43,7 +43,11 @@ fn on_message(args: OnMessageCallbackArgs) {
 }
 
 fn on_close(args: OnCloseCallbackArgs) {
-    http_over_ws::on_close(args.client_principal);
+    if let Err(_) = http_over_ws::try_disconnect_http_proxy(args.client_principal) {
+        print(format!("WS client {:?} disconnected", args.client_principal));
+    } else {
+        print(format!("Proxy client {:?} disconnected", args.client_principal));
+    }
 }
 
 #[init]
@@ -139,17 +143,17 @@ async fn sign_with_ecdsa(message: String, derivation_path: Option<String>) -> St
 }
 
 #[update]
-fn flux_login() -> http_over_ws::HttpRequestId {
+fn flux_login() -> Result<HttpRequestId, HttpOverWsError> {
     flux_api::authentication::login()
 }
 
 #[update]
-fn flux_logout() -> http_over_ws::HttpRequestId {
+fn flux_logout() -> Result<HttpRequestId, HttpOverWsError> {
     flux_api::authentication::logout()
 }
 
 #[update]
-fn flux_fetch_balance() -> http_over_ws::HttpRequestId {
+fn flux_fetch_balance() -> Result<HttpRequestId, HttpOverWsError> {
     flux_api::balance::fetch_balance()
 }
 
@@ -196,17 +200,17 @@ fn tmp_deployment_info() -> flux_api::deployment::DeploymentInfo {
 }
 
 #[update]
-fn flux_calculate_app_price() -> http_over_ws::HttpRequestId {
+fn flux_calculate_app_price() -> Result<HttpRequestId, HttpOverWsError> {
     flux_api::deployment::calculate_app_price(tmp_deployment_info())
 }
 
 #[update]
-async fn flux_register_app() -> http_over_ws::HttpRequestId {
+async fn flux_register_app() -> Result<HttpRequestId, HttpOverWsError> {
     flux_api::deployment::register_app(tmp_deployment_info()).await
 }
 
 #[update]
-fn flux_get_deployment_information() -> http_over_ws::HttpRequestId {
+fn flux_get_deployment_information() -> Result<HttpRequestId, HttpOverWsError> {
     flux_api::deployment::fetch_deployment_information()
 }
 
