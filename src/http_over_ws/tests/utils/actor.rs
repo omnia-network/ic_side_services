@@ -1,7 +1,10 @@
 use std::fmt;
 
 use candid::Principal;
-use http_over_ws::{ExecuteHttpRequestResult, GetHttpResponseResult, HttpRequest, HttpRequestId};
+use http_over_ws::{
+    ExecuteHttpRequestResult, GetHttpResponseResult, HttpRequest, HttpRequestId,
+    HttpRequestTimeoutMs, HttpResponse,
+};
 
 use super::{ic_env::TestEnv, identity::generate_random_principal};
 
@@ -12,6 +15,7 @@ pub enum CanisterMethod {
     WsGetMessages,
     ExecuteHttpRequest,
     GetHttpResponse,
+    GetCallbackResponses,
 }
 
 impl fmt::Display for CanisterMethod {
@@ -23,6 +27,7 @@ impl fmt::Display for CanisterMethod {
             CanisterMethod::WsGetMessages => write!(f, "ws_get_messages"),
             CanisterMethod::ExecuteHttpRequest => write!(f, "execute_http_request"),
             CanisterMethod::GetHttpResponse => write!(f, "get_http_response"),
+            CanisterMethod::GetCallbackResponses => write!(f, "get_callback_responses"),
         }
     }
 }
@@ -40,11 +45,16 @@ impl<'a> CanisterActor<'a> {
         }
     }
 
-    pub fn call_execute_http_request(&self, args: HttpRequest) -> ExecuteHttpRequestResult {
+    pub fn call_execute_http_request(
+        &self,
+        req: HttpRequest,
+        timeout_ms: Option<HttpRequestTimeoutMs>,
+        with_callback: bool,
+    ) -> ExecuteHttpRequestResult {
         self.test_env.call_canister_method_with_panic(
             self.principal,
             CanisterMethod::ExecuteHttpRequest,
-            args,
+            (req, timeout_ms, with_callback),
         )
     }
 
@@ -52,7 +62,15 @@ impl<'a> CanisterActor<'a> {
         self.test_env.query_canister_method_with_panic(
             self.principal,
             CanisterMethod::GetHttpResponse,
-            request_id,
+            (request_id,),
+        )
+    }
+
+    pub fn query_get_callback_responses(&self) -> Vec<HttpResponse> {
+        self.test_env.query_canister_method_with_panic(
+            self.principal,
+            CanisterMethod::GetCallbackResponses,
+            (),
         )
     }
 }

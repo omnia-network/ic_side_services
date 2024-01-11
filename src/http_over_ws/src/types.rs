@@ -48,6 +48,8 @@ impl HttpRequest {
 pub type HttpResponse = ApiHttpResponse;
 pub type HttpCallback = fn(HttpResponse) -> Pin<Box<dyn Future<Output = ()>>>;
 
+pub type HttpRequestTimeoutMs = u64;
+
 #[derive(CandidType, Debug, Deserialize, PartialEq, Eq)]
 pub enum HttpOverWsMessage {
     SetupProxyClient,
@@ -66,7 +68,7 @@ impl HttpOverWsMessage {
     }
 }
 
-#[derive(CandidType, Debug, Deserialize)]
+#[derive(CandidType, Debug, Deserialize, PartialEq, Eq)]
 pub enum HttpOverWsError {
     /// The message is not an HttpOverWsMessage, therefore the on_message callback given to the IC WS cdk
     /// should try to parse it as its own message type.
@@ -75,15 +77,13 @@ pub enum HttpOverWsError {
     InvalidHttpMessage(HttpFailureReason),
 }
 
-#[derive(CandidType, Clone, Debug, Deserialize)]
+#[derive(CandidType, Clone, Debug, Deserialize, PartialEq, Eq)]
 pub enum HttpFailureReason {
     RequestTimeout,
     ProxyError(String),
     /// Used when retrieving the request from the state
     /// and the request is not found.
     RequestIdNotFound,
-    TimerNotSet,
-    CallbackNotSet,
     Unknown,
 }
 

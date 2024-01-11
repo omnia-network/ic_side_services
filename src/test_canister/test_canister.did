@@ -90,9 +90,27 @@ type HttpFailureReason = variant {
     RequestTimeout;
     ProxyError : text;
     RequestIdNotFound;
-    TimerNotSet;
-    CallbackNotSet;
     Unknown;
+};
+
+type HttpRequest = record {
+    url : text;
+    method : HttpMethod;
+    headers : vec HttpHeader;
+    body : opt blob;
+};
+
+type HttpRequestTimeoutMs = nat64;
+
+type HttpResponse = record {
+    status : nat;
+    headers : vec HttpHeader;
+    body : blob;
+};
+
+type GetHttpResponseResult = variant {
+    Ok : HttpResponse;
+    Err : HttpFailureReason;
 };
 /* End HttpOverWs types */
 
@@ -103,10 +121,12 @@ type AppMessage = record {
 /* End Application types */
 
 service : () -> {
-    "execute_http_request" : (text, HttpMethod, vec HttpHeader, opt text) -> (HttpRequestId, HttpOverWsError);
-    "get_logs" : () -> (vec record { text; text }) query;
     "ws_open" : (CanisterWsOpenArguments) -> (CanisterWsOpenResult);
     "ws_close" : (CanisterWsCloseArguments) -> (CanisterWsCloseResult);
     "ws_message" : (CanisterWsMessageArguments, opt AppMessage) -> (CanisterWsMessageResult);
     "ws_get_messages" : (CanisterWsGetMessagesArguments) -> (CanisterWsGetMessagesResult) query;
+
+    "execute_http_request" : (HttpRequest, opt HttpRequestTimeoutMs, bool) -> (HttpRequestId, HttpOverWsError);
+    "get_http_response" : (HttpRequestId) -> (GetHttpResponseResult) query;
+    "get_callback_responses" : () -> (vec HttpResponse) query;
 };

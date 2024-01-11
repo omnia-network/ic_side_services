@@ -4,7 +4,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use candid::{decode_one, encode_one, CandidType, Deserialize, Principal};
+use candid::{decode_one, encode_args, utils::ArgumentEncoder, CandidType, Deserialize, Principal};
 use lazy_static::lazy_static;
 use pocket_ic::{PocketIc, PocketIcBuilder, WasmResult};
 use std::fs::File;
@@ -26,7 +26,6 @@ pub fn get_test_env<'a>() -> MutexGuard<'a, TestEnv> {
 pub struct TestEnv {
     pub pic: PocketIc,
     test_canister_id: Principal,
-    root_ic_key: Vec<u8>,
 }
 
 impl TestEnv {
@@ -51,12 +50,9 @@ impl TestEnv {
             None,
         );
 
-        let root_ic_key = pic.root_key().unwrap();
-
         Self {
             pic,
             test_canister_id: canister_id,
-            root_ic_key,
         }
     }
 
@@ -64,26 +60,31 @@ impl TestEnv {
         self.test_canister_id
     }
 
-    /// Returns the current time of the canister in nanoseconds.
-    pub fn get_canister_time(&self) -> u64 {
+    pub fn reset_canister(&self) {
+        self.tick_n(10);
+
         self.pic
-            .get_time()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos() as u64
+            .reinstall_canister(
+                self.test_canister_id,
+                TEST_CANISTER_WASM_MODULE.clone(),
+                candid::encode_args(()).unwrap(),
+                None,
+            )
+            .unwrap();
     }
 
-    pub fn get_root_ic_key(&self) -> Vec<u8> {
-        self.root_ic_key.clone()
+    /// Produce and advance by some blocks to fire eventual timers.
+    ///
+    /// See https://forum.dfinity.org/t/pocketic-multi-subnet-canister-testing/24901/4.
+    pub fn tick_n(&self, n: u8) {
+        for _ in 0..n {
+            self.pic.tick();
+        }
     }
 
     pub fn advance_canister_time_ms(&self, ms: u64) {
         self.pic.advance_time(Duration::from_millis(ms));
-        // produce and advance by some blocks to fire eventual timers
-        // see https://forum.dfinity.org/t/pocketic-multi-subnet-canister-testing/24901/4
-        for _ in 0..100 {
-            self.pic.tick();
-        }
+        self.tick_n(100);
     }
 
     /// # Panics
@@ -95,7 +96,7 @@ impl TestEnv {
         args: T,
     ) -> S
     where
-        T: CandidType,
+        T: CandidType + ArgumentEncoder,
         S: CandidType + for<'a> Deserialize<'a>,
     {
         let res = self
@@ -104,7 +105,7 @@ impl TestEnv {
                 self.get_test_canister_id(),
                 caller,
                 &method.to_string(),
-                encode_one(args).unwrap(),
+                encode_args(args).unwrap(),
             )
             .expect("Failed to call canister");
 
@@ -123,7 +124,7 @@ impl TestEnv {
         args: T,
     ) -> S
     where
-        T: CandidType,
+        T: CandidType + ArgumentEncoder,
         S: CandidType + for<'a> Deserialize<'a>,
     {
         let res = self
@@ -132,7 +133,7 @@ impl TestEnv {
                 self.get_test_canister_id(),
                 caller,
                 &method.to_string(),
-                encode_one(args).unwrap(),
+                encode_args(args).unwrap(),
             )
             .expect("Failed to call canister");
 

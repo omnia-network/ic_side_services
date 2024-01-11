@@ -35,7 +35,10 @@ impl<'a> ProxyClient<'a> {
         let res: CanisterWsOpenResult = self.test_env.call_canister_method_with_panic(
             self.client_key.client_principal,
             CanisterMethod::WsOpen,
-            CanisterWsOpenArguments::new(self.client_key.client_nonce, self.gateway_principal),
+            (CanisterWsOpenArguments::new(
+                self.client_key.client_nonce,
+                self.gateway_principal,
+            ),),
         );
 
         assert!(res.is_ok());
@@ -53,13 +56,13 @@ impl<'a> ProxyClient<'a> {
         let res: CanisterWsMessageResult = self.test_env.call_canister_method_with_panic(
             self.client_key.client_principal,
             CanisterMethod::WsMessage,
-            CanisterWsMessageArguments::new(WebsocketMessage::new(
+            (CanisterWsMessageArguments::new(WebsocketMessage::new(
                 self.client_key.clone(),
                 self.outgoing_messages_sequence_num,
                 0, // we don't need a timestamp here
                 false,
                 message,
-            )),
+            )),),
         );
 
         assert!(res.is_ok());
@@ -73,7 +76,7 @@ impl<'a> ProxyClient<'a> {
         let res: CanisterWsGetMessagesResult = self.test_env.query_canister_method_with_panic(
             self.gateway_principal,
             CanisterMethod::WsGetMessages,
-            CanisterWsGetMessagesArguments::new(self.polling_nonce),
+            (CanisterWsGetMessagesArguments::new(self.polling_nonce),),
         );
 
         match res {
@@ -103,7 +106,7 @@ impl<'a> ProxyClient<'a> {
         let res: CanisterWsCloseResult = self.test_env.call_canister_method_with_panic(
             self.gateway_principal,
             CanisterMethod::WsClose,
-            CanisterWsCloseArguments::new(self.client_key.clone()),
+            (CanisterWsCloseArguments::new(self.client_key.clone()),),
         );
 
         assert!(res.is_ok());
