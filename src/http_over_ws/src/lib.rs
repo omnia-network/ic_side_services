@@ -14,12 +14,6 @@ use ic_cdk::{
     query, trap, update,
 };
 use ic_cdk_timers::TimerId;
-use ic_websocket_cdk::{
-    CanisterWsCloseArguments, CanisterWsCloseResult, CanisterWsGetMessagesArguments,
-    CanisterWsGetMessagesResult, CanisterWsMessageArguments, CanisterWsMessageResult,
-    CanisterWsOpenArguments, CanisterWsOpenResult, ClientPrincipal, OnCloseCallbackArgs,
-    OnMessageCallbackArgs, OnOpenCallbackArgs, WsHandlers, WsInitParams,
-};
 use logger::log;
 use url::Url;
 
@@ -75,8 +69,8 @@ impl HttpOverWsMessage {
         encode_one(self).unwrap()
     }
 
-    fn from_bytes(bytes: &[u8]) -> Self {
-        decode_one(bytes).unwrap()
+    fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
+        decode_one(bytes).map_err(|e| e.to_string())
     }
 }
 
@@ -116,18 +110,18 @@ impl HttpRequestState {
 }
 
 #[derive(CandidType, Clone, Deserialize)]
-pub struct ConnectedClients(HashMap<ClientPrincipal, HashSet<HttpRequestId>>);
+pub struct ConnectedClients(HashMap<Principal, HashSet<HttpRequestId>>);
 
 impl ConnectedClients {
     pub fn new() -> Self {
         ConnectedClients(HashMap::new())
     }
 
-    pub fn add_client(&mut self, client_principal: ClientPrincipal) {
+    pub fn add_client(&mut self, client_principal: Principal) {
         self.0.insert(client_principal, HashSet::new());
     }
 
-    pub fn get_client_for_request(&self, request_id: HttpRequestId) -> Option<ClientPrincipal> {
+    pub fn get_client_for_request(&self, request_id: HttpRequestId) -> Option<Principal> {
         let connected_clients_count = self.0.len();
         if connected_clients_count == 0 {
             return None;
@@ -147,13 +141,13 @@ impl ConnectedClients {
         )
     }
 
-    pub fn get_connected_clients(&self) -> Vec<ClientPrincipal> {
+    pub fn get_connected_clients(&self) -> Vec<Principal> {
         self.0.keys().cloned().collect()
     }
 
     pub fn assign_request_to_client(
         &mut self,
-        client_principal: &ClientPrincipal,
+        client_principal: &Principal,
         request_id: HttpRequestId,
     ) {
         self.0
@@ -162,7 +156,7 @@ impl ConnectedClients {
             .insert(request_id);
     }
 
-    pub fn assign_request(&mut self, request_id: HttpRequestId) -> Result<ClientPrincipal, String> {
+    pub fn assign_request(&mut self, request_id: HttpRequestId) -> Result<Principal, String> {
         // pick an arbitrary client
         // TODO: check whether keys are returned in arbitrary order
         let client_principal = self
@@ -175,7 +169,7 @@ impl ConnectedClients {
 
     pub fn is_request_assigned_to_client(
         &self,
-        client_principal: ClientPrincipal,
+        client_principal: Principal,
         request_id: HttpRequestId,
     ) -> bool {
         self.0
@@ -186,7 +180,7 @@ impl ConnectedClients {
 
     pub fn complete_request_for_client(
         &mut self,
-        client_principal: ClientPrincipal,
+        client_principal: Principal,
         request_id: HttpRequestId,
     ) -> Result<(), String> {
         let client = self.0.get_mut(&client_principal).ok_or(String::from(
@@ -198,7 +192,7 @@ impl ConnectedClients {
         Ok(())
     }
 
-    pub fn remove_client(&mut self, client_principal: &ClientPrincipal) -> Result<(), String> {
+    pub fn remove_client(&mut self, client_principal: &Principal) -> Result<(), String> {
         self.0
             .remove(client_principal)
             .ok_or(String::from("client not connected"))?;
@@ -211,19 +205,24 @@ thread_local! {
     /* flexible */ static CONNECTED_CLIENTS: RefCell<ConnectedClients> = RefCell::new(ConnectedClients::new());
 }
 
-pub fn on_open(args: OnOpenCallbackArgs) {
+pub fn on_open(client_principal: Principal) {
+    // assuming only http proxy connects as a client
+    // TODO: handle case in which it's either a ws proxy or a real ws client connecting <
     CONNECTED_CLIENTS.with(|clients| {
-        clients.borrow_mut().add_client(args.client_principal);
+        clients.borrow_mut().add_client(client_principal);
     });
     log(&format!(
         "http_over_ws: Client {} connected",
-        args.client_principal
+        client_principal
     ))
 }
 
-pub fn on_message(args: OnMessageCallbackArgs) {
-    let incoming_msg = HttpOverWsMessage::from_bytes(&args.message);
-    let client_principal = args.client_principal;
+pub fn try_handle_http_over_ws_message(
+    client_principal: Principal,
+    serialized_message: Vec<u8>,
+    ws_send: fn(Principal, Vec<u8>) -> Result<(), String>,
+) -> Result<(), String> {
+    let incoming_msg = HttpOverWsMessage::from_bytes(&serialized_message)?;
 
     log(&format!(
         "http_over_ws: incoming message: {:?} from {}",
@@ -232,13 +231,15 @@ pub fn on_message(args: OnMessageCallbackArgs) {
 
     match incoming_msg {
         HttpOverWsMessage::HttpRequest(_, _) => {
-            send_ws_message(
+            ws_send(
                 client_principal,
                 HttpOverWsMessage::Error(
                     None,
                     String::from("Clients are not allowed to send HTTP requests"),
-                ),
-            );
+                )
+                .to_bytes(),
+            )
+            .unwrap();
         }
         HttpOverWsMessage::HttpResponse(request_id, response) => {
             if let Err(e) = handle_http_response(client_principal, request_id, response) {
@@ -262,18 +263,19 @@ pub fn on_message(args: OnMessageCallbackArgs) {
             }
         }
     };
+    Ok(())
 }
 
-pub fn on_close(args: OnCloseCallbackArgs) {
+pub fn on_close(client_principal: Principal) {
     CONNECTED_CLIENTS.with(|clients| {
-        if let Err(e) = clients.borrow_mut().remove_client(&args.client_principal) {
+        if let Err(e) = clients.borrow_mut().remove_client(&client_principal) {
             log(&e);
         };
     });
 
     log(&format!(
         "http_over_ws: Client {} disconnected",
-        args.client_principal
+        client_principal
     ))
 }
 
@@ -334,7 +336,7 @@ fn handle_http_response(
     }
 }
 
-fn http_request_timeout(client_principal: ClientPrincipal, request_id: HttpRequestId) {
+fn http_request_timeout(client_principal: Principal, request_id: HttpRequestId) {
     HTTP_REQUESTS.with(|http_requests| {
         http_requests
             .borrow_mut()
@@ -369,6 +371,7 @@ pub fn execute_http_request(
     body: Option<String>,
     callback: Option<HttpCallback>,
     timeout_ms: Option<u64>,
+    ws_send: fn(Principal, Vec<u8>) -> Result<(), String>,
 ) -> HttpRequestId {
     let http_request = HttpRequest {
         url: url.to_string(),
@@ -398,9 +401,9 @@ pub fn execute_http_request(
                 );
             });
 
-            send_ws_message(
+            ws_send(
                 assigned_client_principal,
-                HttpOverWsMessage::HttpRequest(request_id, http_request),
+                HttpOverWsMessage::HttpRequest(request_id, http_request).to_bytes(),
             );
         }
         Err(e) => {
@@ -467,51 +470,6 @@ pub fn get_http_response(request_id: HttpRequestId) -> GetHttpResponseResult {
                     })
             })?
     })
-}
-
-pub fn init_ws() {
-    let params = WsInitParams::new(WsHandlers {
-        on_open: Some(on_open),
-        on_message: Some(on_message),
-        on_close: Some(on_close),
-    });
-
-    ic_websocket_cdk::init(params);
-}
-
-fn send_ws_message(client_principal: ClientPrincipal, message: HttpOverWsMessage) {
-    if let Err(send_err) = ic_websocket_cdk::send(client_principal, message.to_bytes()) {
-        log(&format!("ws: Failed to send message: {}", send_err))
-    }
-}
-
-pub fn close_client_connection(client_principal: ClientPrincipal) {
-    if let Err(close_err) = ic_websocket_cdk::close(client_principal) {
-        log(&format!("ws: Failed to close connection: {}", close_err))
-    }
-}
-
-#[update]
-fn ws_open(args: CanisterWsOpenArguments) -> CanisterWsOpenResult {
-    ic_websocket_cdk::ws_open(args)
-}
-
-#[update]
-fn ws_close(args: CanisterWsCloseArguments) -> CanisterWsCloseResult {
-    ic_websocket_cdk::ws_close(args)
-}
-
-#[update]
-fn ws_message(
-    args: CanisterWsMessageArguments,
-    _msg_type: Option<HttpOverWsMessage>,
-) -> CanisterWsMessageResult {
-    ic_websocket_cdk::ws_message(args, _msg_type)
-}
-
-#[query]
-fn ws_get_messages(args: CanisterWsGetMessagesArguments) -> CanisterWsGetMessagesResult {
-    ic_websocket_cdk::ws_get_messages(args)
 }
 
 #[cfg(test)]
