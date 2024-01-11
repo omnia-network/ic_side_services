@@ -59,7 +59,7 @@ pub type HttpCallback = fn(HttpResponse) -> Pin<Box<dyn Future<Output = ()>>>;
 
 #[derive(CandidType, Debug, Deserialize)]
 pub enum HttpOverWsMessage {
-    SetupProxyClient(Principal),
+    SetupProxyClient,
     HttpRequest(HttpRequestId, HttpRequest),
     HttpResponse(HttpRequestId, HttpResponse),
     Error(Option<HttpRequestId>, String),
@@ -80,16 +80,18 @@ pub enum HttpOverWsError {
     /// should try to parse it as its own message type.
     NotHttpOverWsType(String),
     /// The message is an HttpOverWsMessage, however it is not what it is expected to be.
-    InvalidHttpMessage(String)
+    InvalidHttpMessage(HttpFailureReason)
 }
 
 #[derive(CandidType, Clone, Deserialize)]
-pub enum HttpRequestFailureReason {
-    Timeout,
-    ErrorFromClient(String),
+pub enum HttpFailureReason {
+    RequestTimeout,
+    ProxyError(String),
     /// Used when retrieving the request from the state
     /// and the request is not found.
-    NotFound,
+    RequestIdNotFound,
+    TimerNotSet,
+    CallbackNotSet,
     Unknown,
 }
 
@@ -99,7 +101,7 @@ struct HttpRequestState {
     response: Option<HttpResponse>,
     callback: Option<HttpCallback>,
     timer_id: Option<TimerId>,
-    failure_reason: Option<HttpRequestFailureReason>,
+    failure_reason: Option<HttpFailureReason>,
 }
 
 impl HttpRequestState {
@@ -170,29 +172,13 @@ impl ConnectedClients {
         Ok(client_principal)
     }
 
-    fn is_request_assigned_to_client(
-        &self,
-        client_principal: Principal,
-        request_id: HttpRequestId,
-    ) -> bool {
-        self.0
-            .get(&client_principal)
-            .ok_or(String::from("client is not connected"))
-            .map(|set| set.contains(&request_id))
-            .unwrap_or(false)
-    }
-
     fn complete_request_for_client(
         &mut self,
         client_principal: Principal,
         request_id: HttpRequestId,
-    ) -> Result<(), String> {
-        let client = self.0.get_mut(&client_principal).ok_or(String::from(
-            "only requests assigned to connected client can be completed",
-        ))?;
-        if !client.remove(&request_id) {
-            return Err(String::from("client has not been assigned the request"));
-        }
+    ) -> Result<(), HttpFailureReason> {
+        let client = self.0.get_mut(&client_principal).ok_or(HttpFailureReason::ProxyError(String::from("proxy not connected")))?;
+        client.remove(&request_id).then(|| ()).ok_or(HttpFailureReason::ProxyError(String::from("client has not been assigned the request")))?;
         Ok(())
     }
 
@@ -224,7 +210,7 @@ pub fn try_handle_http_over_ws_message(
     ));
 
     match incoming_msg {
-        HttpOverWsMessage::SetupProxyClient(client_principal) => {
+        HttpOverWsMessage::SetupProxyClient => {
             CONNECTED_CLIENTS.with(|clients| {
                 clients.borrow_mut().add_client(client_principal);
             });
@@ -235,9 +221,7 @@ pub fn try_handle_http_over_ws_message(
             Ok(())
         },
         HttpOverWsMessage::HttpResponse(request_id, response) => {
-            if let Err(e) = handle_http_response(client_principal, request_id, response) {
-                log(&e);
-            }
+            handle_http_response(client_principal, request_id, response)?;
             Ok(())
         },
         HttpOverWsMessage::Error(request_id, err) => {
@@ -250,17 +234,17 @@ pub fn try_handle_http_over_ws_message(
                         .borrow_mut()
                         .get_mut(&request_id)
                         .and_then(|r| {
-                            r.failure_reason = Some(HttpRequestFailureReason::ErrorFromClient(err));
+                            r.failure_reason = Some(HttpFailureReason::ProxyError(err));
                             Some(r)
                         });
                 });
             }
-            Err(HttpOverWsError::InvalidHttpMessage(e))
+            Err(HttpOverWsError::InvalidHttpMessage(HttpFailureReason::ProxyError(e)))
         },
         HttpOverWsMessage::HttpRequest(_, _) => {
             let e = String::from("http_over_ws: proxy client is not allowed to send HTTP requests over WS");
             log(&e);
-            Err(HttpOverWsError::InvalidHttpMessage(e))
+            Err(HttpOverWsError::InvalidHttpMessage(HttpFailureReason::ProxyError(e)))
         },
     }
 }
@@ -281,55 +265,56 @@ fn handle_http_response(
     client_principal: Principal,
     request_id: HttpRequestId,
     response: HttpResponse,
-) -> Result<(), String> {
-    if CONNECTED_CLIENTS.with(|clients| {
+) -> Result<(), HttpOverWsError> {
+
+    CONNECTED_CLIENTS.with(|clients| {
         clients
-            .borrow()
-            .is_request_assigned_to_client(client_principal, request_id)
-    }) {
-        // assign response to a previous request
-        HTTP_REQUESTS.with(|http_requests| -> Result<(), String> {
-            let mut h = http_requests.borrow_mut();
-            let r = h
-                .get_mut(&request_id)
-                .ok_or(String::from("request not found"))?;
-            r.response = Some(response.clone());
+            .borrow_mut()
+            .complete_request_for_client(client_principal, request_id).map_err(|e| HttpOverWsError::InvalidHttpMessage(e))
+    })?;
 
-            // response has been received, clear the timer
-            let timer_id = r.timer_id.take().ok_or(String::from("timer not set"))?;
-            ic_cdk_timers::clear_timer(timer_id);
+    // assign response to a previous request
+    HTTP_REQUESTS.with(|http_requests| -> Result<(), HttpOverWsError> {
+        let mut h = http_requests.borrow_mut();
+        let r = h
+            .get_mut(&request_id)
+            .ok_or(HttpOverWsError::InvalidHttpMessage(HttpFailureReason::RequestIdNotFound))?;
+        r.response = Some(response.clone());
 
-            let callback = r.callback.ok_or(String::from("callback not set"))?;
-            ic_cdk::spawn(async move { callback(response).await });
+        // response has been received, clear the timer
+        let timer_id = r.timer_id.take().ok_or(HttpOverWsError::InvalidHttpMessage(HttpFailureReason::TimerNotSet))?;
+        ic_cdk_timers::clear_timer(timer_id);
 
-            Ok(())
-        })?;
-
-        CONNECTED_CLIENTS.with(|clients| {
-            clients
-                .borrow_mut()
-                .complete_request_for_client(client_principal, request_id)
-        })?;
-
-        log(&format!(
-            "http_over_ws: completed HTTP request {}",
-            request_id
-        ));
+        let callback = r.callback.ok_or(HttpOverWsError::InvalidHttpMessage(HttpFailureReason::CallbackNotSet))?;
+        ic_cdk::spawn(async move { callback(response).await });
 
         Ok(())
-    } else {
-        Err(String::from("request not assigned to client"))
-    }
+    })?;
+
+    log(&format!(
+        "http_over_ws: completed HTTP request {}",
+        request_id
+    ));
+
+    Ok(())
 }
 
 fn http_request_timeout(client_principal: Principal, request_id: HttpRequestId) {
+    if let Err(_) = CONNECTED_CLIENTS.with(|clients| {
+        clients
+            .borrow_mut()
+            .complete_request_for_client(client_principal, request_id)
+    }) {
+        log("cannot complete requst");
+    }
+
     HTTP_REQUESTS.with(|http_requests| {
         http_requests
             .borrow_mut()
             .get_mut(&request_id)
             .and_then(|r| {
                 if r.response.is_none() {
-                    r.failure_reason = Some(HttpRequestFailureReason::Timeout);
+                    r.failure_reason = Some(HttpFailureReason::RequestTimeout);
 
                     log(&format!(
                         "http_over_ws: HTTP request with id {} timed out",
@@ -340,14 +325,6 @@ fn http_request_timeout(client_principal: Principal, request_id: HttpRequestId) 
                 Some(r)
             });
     });
-
-    if let Err(e) = CONNECTED_CLIENTS.with(|clients| {
-        clients
-            .borrow_mut()
-            .complete_request_for_client(client_principal, request_id)
-    }) {
-        log(&e);
-    }
 }
 
 pub fn execute_http_request(
@@ -434,21 +411,21 @@ pub struct PrettyHttpResponse {
     body: String,
 }
 
-pub type GetHttpResponseResult = Result<PrettyHttpResponse, HttpRequestFailureReason>;
+pub type GetHttpResponseResult = Result<PrettyHttpResponse, HttpFailureReason>;
 
 pub fn get_http_response(request_id: HttpRequestId) -> GetHttpResponseResult {
     HTTP_REQUESTS.with(|http_requests| {
         http_requests
             .borrow()
             .get(&request_id)
-            .ok_or(HttpRequestFailureReason::NotFound)
+            .ok_or(HttpFailureReason::RequestIdNotFound)
             .map(|r| {
                 r.response
                     .as_ref()
                     .ok_or(
                         r.failure_reason
                             .clone()
-                            .unwrap_or(HttpRequestFailureReason::Unknown),
+                            .unwrap_or(HttpFailureReason::Unknown),
                     )
                     .map(|res| PrettyHttpResponse {
                         status: res.status.clone(),
