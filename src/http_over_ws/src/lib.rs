@@ -1,14 +1,14 @@
 use std::cell::RefCell;
 
-mod clients;
+mod state;
 mod handlers;
-mod types;
+mod http_connection;
 
-use clients::State;
+use state::State;
 
 // re-exports
 pub use handlers::*;
-pub use types::*;
+pub use http_connection::*;
 
 // local state
 thread_local! {

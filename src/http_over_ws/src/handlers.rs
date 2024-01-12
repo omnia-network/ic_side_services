@@ -1,4 +1,4 @@
-use crate::{types::*, STATE};
+use crate::{STATE, http_connection::*};
 use candid::Principal;
 use logger::log;
 
@@ -71,7 +71,7 @@ pub fn try_disconnect_http_proxy(client_principal: Principal) -> Result<(), Http
 
 fn handle_http_response(
     client_principal: Principal,
-    request_id: HttpRequestId,
+    request_id: HttpConnectionId,
     response: HttpResponse,
 ) -> Result<(), HttpOverWsError> {
     STATE.with(|state| {
@@ -108,13 +108,13 @@ pub fn execute_http_request(
     Ok(request_id)
 }
 
-pub fn get_http_request(request_id: HttpRequestId) -> Option<HttpRequest> {
+pub fn get_http_request(request_id: HttpConnectionId) -> Option<HttpRequest> {
     STATE.with(|state| {
         state.borrow().get_http_request(request_id)
     })
 }
 
-pub fn get_http_response(request_id: HttpRequestId) -> GetHttpResponseResult {
+pub fn get_http_response(request_id: HttpConnectionId) -> GetHttpResponseResult {
     STATE.with(|state| {
         state
             .borrow()

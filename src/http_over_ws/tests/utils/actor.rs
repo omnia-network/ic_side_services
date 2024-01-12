@@ -2,7 +2,7 @@ use std::fmt;
 
 use candid::Principal;
 use http_over_ws::{
-    ExecuteHttpRequestResult, GetHttpResponseResult, HttpRequest, HttpRequestId,
+    ExecuteHttpRequestResult, GetHttpResponseResult, HttpRequest, HttpConnectionId,
     HttpRequestTimeoutMs, HttpResponse,
 };
 
@@ -58,7 +58,7 @@ impl<'a> CanisterActor<'a> {
         )
     }
 
-    pub fn query_get_http_response(&self, request_id: HttpRequestId) -> GetHttpResponseResult {
+    pub fn query_get_http_response(&self, request_id: HttpConnectionId) -> GetHttpResponseResult {
         self.test_env.query_canister_method_with_panic(
             self.principal,
             CanisterMethod::GetHttpResponse,

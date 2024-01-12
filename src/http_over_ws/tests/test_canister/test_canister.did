@@ -66,7 +66,7 @@ type CanisterWsGetMessagesResult = variant {
 /* End WebSocket types */
 
 /* HttpOverWs types */
-type HttpRequestId = nat32;
+type HttpConnectionId = nat32;
 
 type HttpMethod = variant {
     GET;
@@ -126,7 +126,7 @@ service : () -> {
     "ws_message" : (CanisterWsMessageArguments, opt AppMessage) -> (CanisterWsMessageResult);
     "ws_get_messages" : (CanisterWsGetMessagesArguments) -> (CanisterWsGetMessagesResult) query;
 
-    "execute_http_request" : (HttpRequest, opt HttpRequestTimeoutMs, bool) -> (HttpRequestId, HttpOverWsError);
-    "get_http_response" : (HttpRequestId) -> (GetHttpResponseResult) query;
+    "execute_http_request" : (HttpRequest, opt HttpRequestTimeoutMs, bool) -> (HttpConnectionId, HttpOverWsError);
+    "get_http_response" : (HttpConnectionId) -> (GetHttpResponseResult) query;
     "get_callback_responses" : () -> (vec HttpResponse) query;
 };

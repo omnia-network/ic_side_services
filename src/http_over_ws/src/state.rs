@@ -1,12 +1,10 @@
 use std::{collections::{HashMap, BTreeMap}, time::Duration};
-
 use candid::Principal;
-use logger::log;
 
-use crate::{types::{HttpFailureReason, HttpRequestId}, HttpRequestState, HttpCallback, HttpRequest, HttpRequestTimeoutMs, STATE, HttpResponse, GetHttpResponseResult};
+use crate::{http_connection::{HttpFailureReason, HttpConnectionId}, HttpCallback, HttpRequest, HttpRequestTimeoutMs, STATE, HttpResponse, GetHttpResponseResult, HttpConnection};
 
 #[derive(Clone)]
-pub(crate) struct ConnectedClients(pub HashMap<Principal, BTreeMap<HttpRequestId, HttpRequestState>>);
+pub(crate) struct ConnectedClients(HashMap<Principal, BTreeMap<HttpConnectionId, HttpConnection>>);
 
 impl ConnectedClients {
     fn new() -> Self {
@@ -20,8 +18,8 @@ impl ConnectedClients {
     fn assign_request_to_client(
         &mut self,
         client_principal: &Principal,
-        request_id: HttpRequestId,
-        request: HttpRequestState,
+        request_id: HttpConnectionId,
+        request: HttpConnection,
     ) -> Result<(), HttpFailureReason> {
         self.0
             .get_mut(&client_principal)
@@ -35,7 +33,7 @@ impl ConnectedClients {
     fn complete_request_for_client(
         &mut self,
         client_principal: Principal,
-        request_id: HttpRequestId,
+        request_id: HttpConnectionId,
     ) -> Result<(), HttpFailureReason> {
         let client = self
             .0
@@ -63,7 +61,7 @@ impl ConnectedClients {
 
 pub struct State {
     connected_clients: ConnectedClients,
-    next_request_id: HttpRequestId,
+    next_request_id: HttpConnectionId,
 }
 
 impl State {
@@ -88,7 +86,7 @@ impl State {
         request: HttpRequest,
         callback: Option<HttpCallback>,
         timeout_ms: Option<HttpRequestTimeoutMs>,
-    ) -> Result<(Principal, HttpRequestId), HttpFailureReason> {
+    ) -> Result<(Principal, HttpConnectionId), HttpFailureReason> {
         let request_id = self.next_request_id();
 
         let client_principal = self
@@ -107,7 +105,8 @@ impl State {
             ))
         });
 
-        let request = HttpRequestState::new(
+        let request = HttpConnection::new(
+            request_id,
             request,
             callback,
             timer_id,
@@ -117,12 +116,12 @@ impl State {
         Ok((client_principal, request_id))
     }
 
-    fn next_request_id(&mut self) -> HttpRequestId {
+    fn next_request_id(&mut self) -> HttpConnectionId {
         self.next_request_id += 1;
         self.next_request_id
     } 
 
-    fn get_client_for_request(&self, request_id: HttpRequestId) -> Option<Principal> {
+    fn get_client_for_request(&self, request_id: HttpConnectionId) -> Option<Principal> {
         let connected_clients_count = self.connected_clients.0.len();
         if connected_clients_count == 0 {
             return None;
@@ -143,7 +142,7 @@ impl State {
         )
     }
 
-    pub fn report_http_failure(&mut self, client_principal: Principal, request_id: HttpRequestId, reason: HttpFailureReason) {
+    pub fn report_http_failure(&mut self, client_principal: Principal, request_id: HttpConnectionId, reason: HttpFailureReason) {
         self.connected_clients
             .0
             .get_mut(&client_principal)
@@ -151,13 +150,13 @@ impl State {
                 client
                     .get_mut(&request_id)
                     .and_then(|r| {
-                        r.failure_reason = Some(reason);
+                        r.report_failure(reason);
                         Some(r)
                     })
             });
     }
 
-    pub fn handle_http_response(&mut self, client_principal: Principal, request_id: HttpRequestId, response: HttpResponse) -> Result<(), HttpFailureReason> {
+    pub fn handle_http_response(&mut self, client_principal: Principal, request_id: HttpConnectionId, response: HttpResponse) -> Result<(), HttpFailureReason> {
         let client = self.connected_clients
             .0
             .get_mut(&client_principal)
@@ -170,33 +169,10 @@ impl State {
             HttpFailureReason::RequestIdNotFound,
             )?;
         
-        // a response arriving after an error has been reported is ignored
-        if let Some(e) = request.failure_reason.clone() {
-            return Err(e);
-        }
-
-        // a second response is ignored
-        if request.response.is_none() {
-            request.response = Some(response.clone());
-    
-    
-            // response has been received, clear the timer if it was set
-            if let Some(timer_id) = request.timer_id.take() {
-                ic_cdk_timers::clear_timer(timer_id);
-            }
-    
-            // if a callback was set, execute it
-            if let Some(callback) = request.callback {
-                ic_cdk::spawn(async move { callback(response).await });
-            }
-    
-            // self.connected_clients.complete_request_for_client(client_principal, request_id)?;
-        }
-
-        Ok(())
+        request.update_state(response)
     }
 
-    pub fn get_http_request(&self, request_id: HttpRequestId) -> Option<HttpRequest> {
+    pub fn get_http_request(&self, request_id: HttpConnectionId) -> Option<HttpRequest> {
         for (_, requests) in
             self
                 .connected_clients
@@ -205,14 +181,14 @@ impl State {
         {
             for (id, request) in requests {
                 if id.to_owned() == request_id {
-                    return Some(request.request.clone());
+                    return Some(request.get_request());
                 }
             }
         }
         None
     }
 
-    pub fn get_http_response(&self, request_id: HttpRequestId) -> GetHttpResponseResult {
+    pub fn get_http_response(&self, request_id: HttpConnectionId) -> GetHttpResponseResult {
         for (_, requests) in
             self
                 .connected_clients
@@ -221,14 +197,7 @@ impl State {
         {
             for (id, request) in requests {
                 if id.to_owned() == request_id {
-                    return request.response
-                        .as_ref()
-                        .ok_or(
-                        request.failure_reason
-                            .clone()
-                            .unwrap_or(HttpFailureReason::Unknown),
-                        )
-                        .cloned();
+                    return request.get_response();
                 }
             }
         }
@@ -237,7 +206,7 @@ impl State {
 }
 
 
-fn http_request_timeout(client_principal: Principal, request_id: HttpRequestId) {
+fn http_request_timeout(client_principal: Principal, request_id: HttpConnectionId) {
     STATE.with(|state| {
         state.borrow_mut()
             .connected_clients
@@ -248,15 +217,7 @@ fn http_request_timeout(client_principal: Principal, request_id: HttpRequestId) 
                     .get_mut(&request_id)
                     .and_then(|r| 
                     {
-                        if r.response.is_none() {
-                            r.failure_reason = Some(HttpFailureReason::RequestTimeout);
-        
-                            log(&format!(
-                                "http_over_ws: HTTP request with id {} timed out",
-                                request_id
-                            ));
-                        }
-        
+                        r.set_timeout();
                         Some(r)
                     })
             });
