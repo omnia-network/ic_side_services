@@ -35,7 +35,7 @@ pub fn on_close(args: OnCloseCallbackArgs) {
         ));
     } else {
         log(&format!(
-            "Proxy proxy {:?} disconnected",
+            "Proxy client {:?} disconnected",
             args.client_principal
         ));
     }

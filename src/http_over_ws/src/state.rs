@@ -2,7 +2,6 @@ use std::{collections::HashMap, time::Duration, cell::RefCell};
 use candid::Principal;
 use crate::{http_connection::{HttpFailureReason, HttpConnectionId, HttpCallback, HttpRequest, HttpRequestTimeoutMs, HttpResponse, GetHttpResponseResult, HttpConnection}, client_proxy::ClientProxy};
 
-
 // local state
 thread_local! {
     /* flexible */ pub static STATE: RefCell<State> = RefCell::new(State::new());
@@ -160,13 +159,6 @@ fn http_connection_timeout(proxy_principal: Principal, connection_id: HttpConnec
                 });
                 Some(r)
             });
-        // if let Err(_) = state
-        //     .borrow_mut()
-        //     .connected_proxies
-        //     .complete_connection_for_proxy(proxy_principal, connection_id)
-        // {
-        //     log("cannot complete connection");
-        // }
     });
 }
 
@@ -196,6 +188,9 @@ impl ConnectedProxies {
         Ok(())
     }
 
+    #[allow(dead_code)]
+    /// Removes the connection from the proxy.
+    //  Not used for now but will be needed when we want to remove old connections
     fn complete_connection_for_proxy(
         &mut self,
         proxy_principal: &Principal,

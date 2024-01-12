@@ -1,5 +1,4 @@
 use std::{future::Future, pin::Pin};
-
 use candid::{decode_one, encode_one, CandidType, Deserialize};
 use ic_cdk::api::management_canister::http_request::{
     HttpHeader as ApiHttpHeader, HttpResponse as ApiHttpResponse,
