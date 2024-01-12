@@ -1,19 +1,53 @@
 mod utils;
 
+use std::{path::PathBuf, sync::Once};
+
 use candid::Nat;
 use http_over_ws::{
     HttpFailureReason, HttpMethod, HttpOverWsError, HttpOverWsMessage, HttpRequest, HttpResponse,
 };
-use utils::{
-    actor::CanisterActor, constants::TEST_HTTP_REQUEST_HEADER, ic_env, proxy_client::ProxyClient,
+use lazy_static::lazy_static;
+use test_utils::{
+    ic_env::{get_test_env, load_canister_wasm_from_path, CanisterData},
+    proxy_client::ProxyClient,
 };
 
-use crate::utils::constants::{TEST_HTTP_RESPONSE_HEADER, TEST_URL};
+use crate::utils::{
+    actor::CanisterActor,
+    constants::TEST_HTTP_REQUEST_HEADER,
+    constants::{TEST_HTTP_RESPONSE_HEADER, TEST_URL},
+};
+
+lazy_static! {
+    pub static ref TEST_CANISTER_WASM_MODULE: Vec<u8> =
+        load_canister_wasm_from_path(&PathBuf::from(
+            std::env::var("TEST_CANISTER_WASM_PATH").expect("TEST_CANISTER_WASM_PATH must be set")
+        ));
+}
+
+static INIT: Once = Once::new();
+
+fn setup() {
+    INIT.call_once(|| {
+        get_test_env().add_canister(CanisterData {
+            wasm_module: TEST_CANISTER_WASM_MODULE.clone(),
+            args: vec![],
+            controller: None,
+        });
+    });
+}
+
+fn reset_canister() {
+    let test_env = get_test_env();
+    let canister_id = test_env.get_canisters().into_keys().next().unwrap();
+    test_env.reset_canister(&canister_id);
+}
 
 #[test]
 fn test_execute_http_request_no_clients_connected() {
-    let test_env = ic_env::get_test_env();
-    test_env.reset_canister();
+    setup();
+    reset_canister();
+    let test_env = get_test_env();
     let canister_actor = CanisterActor::new(&test_env);
 
     let request = HttpRequest::new(
@@ -35,8 +69,9 @@ fn test_execute_http_request_no_clients_connected() {
 
 #[test]
 fn test_execute_http_request_after_client_disconnected() {
-    let test_env = ic_env::get_test_env();
-    test_env.reset_canister();
+    setup();
+    reset_canister();
+    let test_env = get_test_env();
     let mut proxy_client = ProxyClient::new(&test_env);
     let canister_actor = CanisterActor::new(&test_env);
 
@@ -62,8 +97,9 @@ fn test_execute_http_request_after_client_disconnected() {
 
 #[test]
 fn test_execute_http_request_without_response() {
-    let test_env = ic_env::get_test_env();
-    test_env.reset_canister();
+    setup();
+    reset_canister();
+    let test_env = get_test_env();
     let mut proxy_client = ProxyClient::new(&test_env);
     let canister_actor = CanisterActor::new(&test_env);
 
@@ -92,8 +128,9 @@ fn test_execute_http_request_without_response() {
 
 #[test]
 fn test_execute_http_request() {
-    let test_env = ic_env::get_test_env();
-    test_env.reset_canister();
+    setup();
+    reset_canister();
+    let test_env = get_test_env();
     let mut proxy_client = ProxyClient::new(&test_env);
     let canister_actor = CanisterActor::new(&test_env);
 
@@ -135,8 +172,9 @@ fn test_execute_http_request() {
 
 #[test]
 fn test_execute_http_request_with_body() {
-    let test_env = ic_env::get_test_env();
-    test_env.reset_canister();
+    setup();
+    reset_canister();
+    let test_env = get_test_env();
     let mut proxy_client = ProxyClient::new(&test_env);
     let canister_actor = CanisterActor::new(&test_env);
 
@@ -175,8 +213,9 @@ fn test_execute_http_request_with_body() {
 
 #[test]
 fn test_execute_http_request_with_proxy_error() {
-    let test_env = ic_env::get_test_env();
-    test_env.reset_canister();
+    setup();
+    reset_canister();
+    let test_env = get_test_env();
     let mut proxy_client = ProxyClient::new(&test_env);
     let canister_actor = CanisterActor::new(&test_env);
 
@@ -212,8 +251,9 @@ fn test_execute_http_request_with_proxy_error() {
 
 #[test]
 fn test_execute_http_request_only_assigned_proxy() {
-    let test_env = ic_env::get_test_env();
-    test_env.reset_canister();
+    setup();
+    reset_canister();
+    let test_env = get_test_env();
     let mut proxy_client1 = ProxyClient::new(&test_env);
     let mut proxy_client2 = ProxyClient::new(&test_env);
     let canister_actor = CanisterActor::new(&test_env);
@@ -269,8 +309,9 @@ fn test_execute_http_request_only_assigned_proxy() {
 
 #[test]
 fn test_execute_http_request_multiple() {
-    let test_env = ic_env::get_test_env();
-    test_env.reset_canister();
+    setup();
+    reset_canister();
+    let test_env = get_test_env();
     let mut proxy_client = ProxyClient::new(&test_env);
     let canister_actor = CanisterActor::new(&test_env);
 
@@ -334,8 +375,9 @@ fn test_execute_http_request_multiple() {
 
 #[test]
 fn test_execute_http_request_before_timeout() {
-    let test_env = ic_env::get_test_env();
-    test_env.reset_canister();
+    setup();
+    reset_canister();
+    let test_env = get_test_env();
     let mut proxy_client = ProxyClient::new(&test_env);
     let canister_actor = CanisterActor::new(&test_env);
 
@@ -377,8 +419,9 @@ fn test_execute_http_request_before_timeout() {
 
 #[test]
 fn test_execute_http_request_timeout_expired() {
-    let test_env = ic_env::get_test_env();
-    test_env.reset_canister();
+    setup();
+    reset_canister();
+    let test_env = get_test_env();
     let mut proxy_client = ProxyClient::new(&test_env);
     let canister_actor = CanisterActor::new(&test_env);
 
@@ -425,8 +468,9 @@ fn test_execute_http_request_timeout_expired() {
 
 #[test]
 fn test_execute_http_request_with_callback() {
-    let test_env = ic_env::get_test_env();
-    test_env.reset_canister();
+    setup();
+    reset_canister();
+    let test_env = get_test_env();
     let mut proxy_client = ProxyClient::new(&test_env);
     let canister_actor = CanisterActor::new(&test_env);
 
@@ -469,8 +513,9 @@ fn test_execute_http_request_with_callback() {
 
 #[test]
 fn test_execute_http_request_duplicate_response() {
-    let test_env = ic_env::get_test_env();
-    test_env.reset_canister();
+    setup();
+    reset_canister();
+    let test_env = get_test_env();
     let mut proxy_client = ProxyClient::new(&test_env);
     let canister_actor = CanisterActor::new(&test_env);
 
@@ -530,8 +575,9 @@ fn test_execute_http_request_duplicate_response() {
 
 #[test]
 fn test_get_http_response_not_found() {
-    let test_env = ic_env::get_test_env();
-    test_env.reset_canister();
+    setup();
+    reset_canister();
+    let test_env = get_test_env();
     let canister_actor = CanisterActor::new(&test_env);
 
     let res = canister_actor.query_get_http_response(0);

@@ -1,7 +1,8 @@
 use std::{
+    collections::HashMap,
     path::PathBuf,
     sync::{Mutex, MutexGuard},
-    time::{Duration, SystemTime},
+    time::Duration,
 };
 
 use candid::{decode_one, encode_args, utils::ArgumentEncoder, CandidType, Deserialize, Principal};
@@ -10,22 +11,24 @@ use pocket_ic::{PocketIc, PocketIcBuilder, WasmResult};
 use std::fs::File;
 use std::io::Read;
 
-use super::actor::CanisterMethod;
-
 lazy_static! {
     pub static ref TEST_ENV: Mutex<TestEnv> = Mutex::new(TestEnv::new());
-    static ref TEST_CANISTER_WASM_MODULE: Vec<u8> = load_canister_wasm_from_path(&PathBuf::from(
-        std::env::var("TEST_CANISTER_WASM_PATH").expect("TEST_CANISTER_WASM_PATH must be set")
-    ));
 }
 
 pub fn get_test_env<'a>() -> MutexGuard<'a, TestEnv> {
     TEST_ENV.lock().unwrap()
 }
 
+#[derive(Clone)]
+pub struct CanisterData {
+    pub wasm_module: Vec<u8>,
+    pub args: Vec<u8>,
+    pub controller: Option<Principal>,
+}
+
 pub struct TestEnv {
     pub pic: PocketIc,
-    test_canister_id: Principal,
+    canisters: HashMap<Principal, CanisterData>,
 }
 
 impl TestEnv {
@@ -36,39 +39,44 @@ impl TestEnv {
             .with_application_subnet()
             .build();
 
-        // set ic time to current time
-        pic.set_time(SystemTime::now());
-
-        let app_subnet = pic.topology().get_app_subnets()[0];
-        let canister_id = pic.create_canister_on_subnet(None, None, app_subnet);
-        pic.add_cycles(canister_id, 1_000_000_000_000_000);
-
-        pic.install_canister(
-            canister_id,
-            TEST_CANISTER_WASM_MODULE.clone(),
-            candid::encode_args(()).unwrap(),
-            None,
-        );
-
         Self {
             pic,
-            test_canister_id: canister_id,
+            canisters: HashMap::new(),
         }
     }
 
-    pub fn get_test_canister_id(&self) -> Principal {
-        self.test_canister_id
+    pub fn add_canister(&mut self, data: CanisterData) -> Principal {
+        let app_subnet = self.pic.topology().get_app_subnets()[0];
+        let canister_id = self.pic.create_canister_on_subnet(None, None, app_subnet);
+        self.pic.add_cycles(canister_id, 1_000_000_000_000_000);
+
+        self.pic.install_canister(
+            canister_id,
+            data.wasm_module.clone(),
+            data.args.clone(),
+            data.controller,
+        );
+
+        self.canisters.insert(canister_id, data);
+
+        canister_id
     }
 
-    pub fn reset_canister(&self) {
+    pub fn get_canisters(&self) -> HashMap<Principal, CanisterData> {
+        self.canisters.clone()
+    }
+
+    pub fn reset_canister(&self, canister_id: &Principal) {
         self.tick_n(10);
+
+        let data = self.canisters.get(canister_id).unwrap();
 
         self.pic
             .reinstall_canister(
-                self.test_canister_id,
-                TEST_CANISTER_WASM_MODULE.clone(),
-                candid::encode_args(()).unwrap(),
-                None,
+                *canister_id,
+                data.wasm_module.clone(),
+                data.args.clone(),
+                data.controller,
             )
             .unwrap();
     }
@@ -91,8 +99,9 @@ impl TestEnv {
     /// if the call returns a [WasmResult::Reject].
     pub fn call_canister_method_with_panic<T, S>(
         &self,
+        canister_id: Principal,
         caller: Principal,
-        method: CanisterMethod,
+        method: &str,
         args: T,
     ) -> S
     where
@@ -102,7 +111,7 @@ impl TestEnv {
         let res = self
             .pic
             .update_call(
-                self.get_test_canister_id(),
+                canister_id,
                 caller,
                 &method.to_string(),
                 encode_args(args).unwrap(),
@@ -119,8 +128,9 @@ impl TestEnv {
     /// if the call returns a [WasmResult::Reject].
     pub fn query_canister_method_with_panic<T, S>(
         &self,
+        canister_id: Principal,
         caller: Principal,
-        method: CanisterMethod,
+        method: &str,
         args: T,
     ) -> S
     where
@@ -130,7 +140,7 @@ impl TestEnv {
         let res = self
             .pic
             .query_call(
-                self.get_test_canister_id(),
+                canister_id,
                 caller,
                 &method.to_string(),
                 encode_args(args).unwrap(),
@@ -144,7 +154,7 @@ impl TestEnv {
     }
 }
 
-fn load_canister_wasm_from_path(path: &PathBuf) -> Vec<u8> {
+pub fn load_canister_wasm_from_path(path: &PathBuf) -> Vec<u8> {
     let mut file = File::open(&path)
         .unwrap_or_else(|_| panic!("Failed to open file: {}", path.to_str().unwrap()));
     let mut bytes = Vec::new();

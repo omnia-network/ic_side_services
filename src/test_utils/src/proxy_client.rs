@@ -1,10 +1,9 @@
 use candid::{decode_one, encode_one, Principal};
 use http_over_ws::HttpOverWsMessage;
 
-use super::{
-    actor::CanisterMethod, ic_env::TestEnv, identity::generate_random_principal,
-    rand::generate_random_nonce,
-};
+use crate::ic_env::TestEnv;
+
+use super::{identity::generate_random_principal, rand::generate_random_nonce};
 use ic_websocket_cdk::{
     CanisterOutputCertifiedMessages, CanisterWsCloseArguments, CanisterWsCloseResult,
     CanisterWsGetMessagesArguments, CanisterWsGetMessagesResult, CanisterWsMessageArguments,
@@ -14,6 +13,7 @@ use ic_websocket_cdk::{
 
 pub struct ProxyClient<'a> {
     test_env: &'a TestEnv,
+    canister_id: Principal,
     client_key: ClientKey,
     gateway_principal: Principal,
     outgoing_messages_sequence_num: u64,
@@ -24,6 +24,7 @@ impl<'a> ProxyClient<'a> {
     pub fn new(test_env: &'a TestEnv) -> Self {
         Self {
             test_env,
+            canister_id: test_env.get_canisters().into_keys().next().unwrap(),
             client_key: generate_random_client_key(),
             gateway_principal: generate_random_principal(),
             outgoing_messages_sequence_num: 0,
@@ -33,8 +34,9 @@ impl<'a> ProxyClient<'a> {
 
     pub fn open_ws_connection(&self) {
         let res: CanisterWsOpenResult = self.test_env.call_canister_method_with_panic(
+            self.canister_id,
             self.client_key.client_principal,
-            CanisterMethod::WsOpen,
+            "ws_open",
             (CanisterWsOpenArguments::new(
                 self.client_key.client_nonce,
                 self.gateway_principal,
@@ -54,8 +56,9 @@ impl<'a> ProxyClient<'a> {
         self.outgoing_messages_sequence_num += 1;
 
         let res: CanisterWsMessageResult = self.test_env.call_canister_method_with_panic(
+            self.canister_id,
             self.client_key.client_principal,
-            CanisterMethod::WsMessage,
+            "ws_message",
             (CanisterWsMessageArguments::new(WebsocketMessage::new(
                 self.client_key.clone(),
                 self.outgoing_messages_sequence_num,
@@ -74,8 +77,9 @@ impl<'a> ProxyClient<'a> {
 
     pub fn get_http_over_ws_messages(&mut self) -> Vec<HttpOverWsMessage> {
         let res: CanisterWsGetMessagesResult = self.test_env.query_canister_method_with_panic(
+            self.canister_id,
             self.gateway_principal,
-            CanisterMethod::WsGetMessages,
+            "ws_get_messages",
             (CanisterWsGetMessagesArguments::new(self.polling_nonce),),
         );
 
@@ -104,8 +108,9 @@ impl<'a> ProxyClient<'a> {
 
     pub fn close_ws_connection(&self) {
         let res: CanisterWsCloseResult = self.test_env.call_canister_method_with_panic(
+            self.canister_id,
             self.gateway_principal,
-            CanisterMethod::WsClose,
+            "ws_close",
             (CanisterWsCloseArguments::new(self.client_key.clone()),),
         );
 

@@ -861,6 +861,7 @@ dependencies = [
  "ring 0.16.20",
  "serde",
  "serde_cbor",
+ "test_utils",
 ]
 
 [[package]]
@@ -2236,6 +2237,22 @@ dependencies = [
  "serde",
  "serde_cbor",
  "url",
+]
+
+[[package]]
+name = "test_utils"
+version = "0.0.1"
+dependencies = [
+ "candid",
+ "http_over_ws",
+ "ic-agent",
+ "ic-websocket-cdk",
+ "lazy_static",
+ "pocket-ic",
+ "rand",
+ "ring 0.16.20",
+ "serde",
+ "serde_cbor",
 ]
 
 [[package]]
