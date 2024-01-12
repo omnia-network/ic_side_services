@@ -6,13 +6,13 @@ pub(crate) struct ClientProxy {
 }
 
 impl ClientProxy {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         ClientProxy {
             connections: BTreeMap::new(),
         }
     }
 
-    pub fn assign_connection(
+    pub(crate) fn assign_connection(
         &mut self,
         connection_id: HttpConnectionId,
         connection: HttpConnection,
@@ -20,25 +20,25 @@ impl ClientProxy {
         self.connections.insert(connection_id, connection);
     }
 
-    pub fn report_connection_failure(&mut self, connection_id: HttpConnectionId, reason: HttpFailureReason) {
+    pub(crate) fn report_connection_failure(&mut self, connection_id: HttpConnectionId, reason: HttpFailureReason) {
         self.connections.get_mut(&connection_id)
-            .and_then(|r| {
-                r.report_failure(reason);
-                Some(r.clone())
+            .and_then(|connection| {
+                connection.report_failure(reason);
+                Some(connection)
             });
     }
 
-    pub fn get_connection_mut(&mut self, connection_id: HttpConnectionId) -> Result<&mut HttpConnection, HttpFailureReason> {
+    pub(crate) fn get_connection_mut(&mut self, connection_id: HttpConnectionId) -> Result<&mut HttpConnection, HttpFailureReason> {
         self.connections.get_mut(&connection_id).ok_or(
-            HttpFailureReason::RequestIdNotFound,
+            HttpFailureReason::ConnectionIdNotFound,
             )
     }
 
-    pub fn get_connections(&self) -> &BTreeMap<HttpConnectionId, HttpConnection> {
+    pub(crate) fn get_connections(&self) -> &BTreeMap<HttpConnectionId, HttpConnection> {
         &self.connections
     }
 
-    pub fn remove_connection(&mut self, connection_id: HttpConnectionId) -> Result<HttpConnection, HttpFailureReason> {
+    pub(crate) fn remove_connection(&mut self, connection_id: HttpConnectionId) -> Result<HttpConnection, HttpFailureReason> {
         self.connections.remove(&connection_id).ok_or(HttpFailureReason::ProxyError(String::from(
             "client has not been assigned the connection",
         )))

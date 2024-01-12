@@ -7,29 +7,29 @@ thread_local! {
     /* flexible */ pub static STATE: RefCell<State> = RefCell::new(State::new());
 }
 
-pub struct State {
+pub(crate) struct State {
     connected_proxies: ConnectedProxies,
     next_connection_id: HttpConnectionId,
 }
 
 impl State {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         State {
             connected_proxies: ConnectedProxies::new(),
             next_connection_id: 0,
         }
     }
 
-    pub fn add_proxy(&mut self, proxy_principal: Principal) {
+    pub(crate) fn add_proxy(&mut self, proxy_principal: Principal) {
         self.connected_proxies.add_proxy(proxy_principal);
     }
 
 
-    pub fn remove_proxy(&mut self, proxy_principal: &Principal) -> Result<(), HttpFailureReason> {
+    pub(crate) fn remove_proxy(&mut self, proxy_principal: &Principal) -> Result<(), HttpFailureReason> {
         self.connected_proxies.remove_proxy(proxy_principal)
     }
 
-    pub fn assign_connection(
+    pub(crate) fn assign_connection(
         &mut self,
         request: HttpRequest,
         callback: Option<HttpCallback>,
@@ -90,7 +90,7 @@ impl State {
         )
     }
 
-    pub fn report_connection_failure(&mut self, proxy_principal: Principal, connection_id: HttpConnectionId, reason: HttpFailureReason) {
+    pub(crate) fn report_connection_failure(&mut self, proxy_principal: Principal, connection_id: HttpConnectionId, reason: HttpFailureReason) {
         self.connected_proxies
             .0
             .get_mut(&proxy_principal)
@@ -100,7 +100,7 @@ impl State {
             });
     }
 
-    pub fn handle_http_response(&mut self, proxy_principal: Principal, connection_id: HttpConnectionId, response: HttpResponse) -> Result<(), HttpFailureReason> {
+    pub(crate) fn handle_http_response(&mut self, proxy_principal: Principal, connection_id: HttpConnectionId, response: HttpResponse) -> Result<(), HttpFailureReason> {
         let proxy = self.connected_proxies
             .0
             .get_mut(&proxy_principal)
@@ -112,7 +112,7 @@ impl State {
         connection.update_state(response)
     }
 
-    pub fn get_http_connection(&self, connection_id: HttpConnectionId) -> Option<HttpRequest> {
+    pub(crate) fn get_http_connection(&self, connection_id: HttpConnectionId) -> Option<HttpRequest> {
         for (_, proxy) in
             self
                 .connected_proxies
@@ -128,7 +128,7 @@ impl State {
         None
     }
 
-    pub fn get_http_response(&self, connection_id: HttpConnectionId) -> GetHttpResponseResult {
+    pub(crate) fn get_http_response(&self, connection_id: HttpConnectionId) -> GetHttpResponseResult {
         for (_, proxy) in
             self
                 .connected_proxies
@@ -141,7 +141,7 @@ impl State {
                 }
             }
         }
-        Err(HttpFailureReason::RequestIdNotFound)
+        Err(HttpFailureReason::ConnectionIdNotFound)
     }
 }
 

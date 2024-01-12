@@ -24,10 +24,10 @@ pub type HttpHeader = ApiHttpHeader;
 
 #[derive(CandidType, Clone, Debug, Deserialize, PartialEq, Eq)]
 pub struct HttpRequest {
-    pub url: String,
-    pub method: HttpMethod,
-    pub headers: Vec<HttpHeader>,
-    pub body: Option<Vec<u8>>,
+    url: String,
+    method: HttpMethod,
+    headers: Vec<HttpHeader>,
+    body: Option<Vec<u8>>,
 }
 
 impl HttpRequest {
@@ -47,7 +47,7 @@ impl HttpRequest {
 }
 
 pub type HttpResponse = ApiHttpResponse;
-pub type HttpCallback = fn(HttpResponse) -> Pin<Box<dyn Future<Output = ()>>>;
+pub(crate) type HttpCallback = fn(HttpResponse) -> Pin<Box<dyn Future<Output = ()>>>;
 
 pub type HttpRequestTimeoutMs = u64;
 
@@ -60,11 +60,11 @@ pub enum HttpOverWsMessage {
 }
 
 impl HttpOverWsMessage {
-    pub fn to_bytes(&self) -> Vec<u8> {
+    pub(crate) fn to_bytes(&self) -> Vec<u8> {
         encode_one(self).unwrap()
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
+    pub(crate) fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
         decode_one(bytes).map_err(|e| e.to_string())
     }
 }
@@ -84,11 +84,10 @@ pub enum HttpFailureReason {
     ProxyError(String),
     /// Used when retrieving the request from the state
     /// and the request is not found.
-    RequestIdNotFound,
-    Unknown,
+    ConnectionIdNotFound,
+    NotYetReceived,
 }
 
-#[derive(Clone)]
 pub(crate) struct HttpConnection {
     id: HttpConnectionId,
     request: HttpRequest,
@@ -96,7 +95,7 @@ pub(crate) struct HttpConnection {
 }
 
 impl HttpConnection {
-    pub fn new(
+    pub(crate) fn new(
         id: HttpConnectionId,
         request: HttpRequest,
         callback: Option<HttpCallback>,
@@ -109,19 +108,19 @@ impl HttpConnection {
         }
     }
 
-    pub fn get_request(&self) -> HttpRequest {
+    pub(crate) fn get_request(&self) -> HttpRequest {
         self.request.clone()
     }
 
-    pub fn get_response(&self) -> GetHttpResponseResult {
+    pub(crate) fn get_response(&self) -> GetHttpResponseResult {
         match self.state {
-            HttpConnectionState::WaitingForResponse(_) => Err(HttpFailureReason::Unknown),
+            HttpConnectionState::WaitingForResponse(_) => Err(HttpFailureReason::NotYetReceived),
             HttpConnectionState::Failed(ref reason) => Err(reason.clone()),
             HttpConnectionState::Success(ref response) => Ok(response.clone()),
         }
     }
 
-    pub fn update_state(&mut self, response: HttpResponse) -> Result<(), HttpFailureReason> {
+    pub(crate) fn update_state(&mut self, response: HttpResponse) -> Result<(), HttpFailureReason> {
         match &mut self.state {
             HttpConnectionState::WaitingForResponse((timer_id, callback)) => {
                 // response has been received, clear the timer if it was set
@@ -150,7 +149,7 @@ impl HttpConnection {
         }
     }
 
-    pub fn set_timeout(&mut self) {
+    pub(crate) fn set_timeout(&mut self) {
         match self.state {
             HttpConnectionState::WaitingForResponse(_) => {
                 log(&format!(
@@ -175,7 +174,7 @@ impl HttpConnection {
         }
     }
 
-    pub fn report_failure(&mut self, reason: HttpFailureReason) {
+    pub(crate) fn report_failure(&mut self, reason: HttpFailureReason) {
         match self.state {
             HttpConnectionState::WaitingForResponse(_) => {
                 log(&format!(
@@ -203,14 +202,14 @@ impl HttpConnection {
 }
 
 #[derive(Clone)]
-pub (crate) enum HttpConnectionState {
+pub(crate) enum HttpConnectionState {
     WaitingForResponse((Option<TimerId>, Option<HttpCallback>)),
     Failed(HttpFailureReason),
     Success(HttpResponse),
 }
 
 impl HttpConnectionState {
-    pub fn new(timer_id: Option<TimerId>, callback: Option<HttpCallback>) -> Self {
+    pub(crate) fn new(timer_id: Option<TimerId>, callback: Option<HttpCallback>) -> Self {
         HttpConnectionState::WaitingForResponse((timer_id, callback))
     }
 }

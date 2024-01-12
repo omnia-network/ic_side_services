@@ -87,7 +87,7 @@ fn test_execute_http_request_without_response() {
     );
 
     let http_response = canister_actor.query_get_http_response(connection_id);
-    assert_eq!(http_response, Err(HttpFailureReason::Unknown));
+    assert_eq!(http_response, Err(HttpFailureReason::NotYetReceived));
 }
 
 #[test]
@@ -256,7 +256,7 @@ fn test_execute_http_request_only_assigned_proxy() {
         http_response.clone(),
     ));
     let res = canister_actor.query_get_http_response(connection_id);
-    assert_eq!(res, Err(HttpFailureReason::Unknown));
+    assert_eq!(res, Err(HttpFailureReason::NotYetReceived));
 
     assigned_proxy.send_http_over_ws_message(HttpOverWsMessage::HttpResponse(
         connection_id,
@@ -535,5 +535,5 @@ fn test_get_http_response_not_found() {
     let canister_actor = CanisterActor::new(&test_env);
 
     let res = canister_actor.query_get_http_response(0);
-    assert_eq!(res, Err(HttpFailureReason::RequestIdNotFound));
+    assert_eq!(res, Err(HttpFailureReason::ConnectionIdNotFound));
 }

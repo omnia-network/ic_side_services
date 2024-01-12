@@ -89,8 +89,8 @@ type HttpOverWsError = variant {
 type HttpFailureReason = variant {
     RequestTimeout;
     ProxyError : text;
-    RequestIdNotFound;
-    Unknown;
+    ConnectionIdNotFound;
+    NotYetReceived;
 };
 
 type HttpRequest = record {
