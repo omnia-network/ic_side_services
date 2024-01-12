@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
 use http_over_ws::HttpRequestId;
+use proxy_canister_types::{CanisterCallbackMethodName, CanisterId};
 
-use crate::{requests::CanisterRequest, types::*};
+use crate::requests::CanisterRequest;
 
 pub struct ProxyState {
     requests: HashMap<HttpRequestId, CanisterRequest>,

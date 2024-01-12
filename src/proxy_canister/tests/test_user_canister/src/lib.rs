@@ -4,7 +4,7 @@ use candid::Principal;
 use http_over_ws::{HttpRequestId, HttpResponse};
 use ic_cdk::{print, trap};
 use ic_cdk_macros::{init, query, update};
-use proxy_canister::{HttpRequestEndpointArgs, HttpRequestEndpointResult};
+use proxy_canister_types::{HttpRequestEndpointArgs, HttpRequestEndpointResult};
 
 thread_local! {
     /* flexible */ static PROXY_CANISTER_ID: RefCell<Principal> = RefCell::new(Principal::anonymous());

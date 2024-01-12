@@ -2,6 +2,7 @@
 members = [
   "src/http_over_ws",
   "src/proxy_canister",
+  "src/proxy_canister_types",
   "src/logger",
   "src/http_over_ws/tests/test_canister",
   "src/proxy_canister/tests/test_user_canister",
@@ -26,3 +27,4 @@ lazy_static = "1.4.0"
 logger = { path = "src/logger" }
 http_over_ws = { path = "src/http_over_ws" }
 test_utils = { path = "src/test_utils" }
+proxy_canister_types = { path = "src/proxy_canister_types" }

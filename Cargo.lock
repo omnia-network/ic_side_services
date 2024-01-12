@@ -1622,9 +1622,19 @@ dependencies = [
  "ic-websocket-cdk",
  "lazy_static",
  "logger",
+ "proxy_canister_types",
  "serde",
  "test_utils",
  "url",
+]
+
+[[package]]
+name = "proxy_canister_types"
+version = "0.0.1"
+dependencies = [
+ "candid",
+ "http_over_ws",
+ "serde",
 ]
 
 [[package]]
@@ -2250,7 +2260,7 @@ dependencies = [
  "http_over_ws",
  "ic-cdk",
  "ic-cdk-macros",
- "proxy_canister",
+ "proxy_canister_types",
 ]
 
 [[package]]

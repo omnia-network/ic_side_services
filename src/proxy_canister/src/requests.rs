@@ -1,9 +1,18 @@
+use proxy_canister_types::{
+    CanisterCallbackMethodName, CanisterId, HttpRequestEndpointArgs, InvalidRequest,
+};
 use url::Url;
 
-use crate::{
-    constants::{MAX_HTTP_HEADERS_COUNT, MAX_HTTP_REQUEST_TIMEOUT_MS, MIN_HTTP_REQUEST_TIMEOUT_MS},
-    types::*,
+use crate::constants::{
+    MAX_HTTP_HEADERS_COUNT, MAX_HTTP_REQUEST_TIMEOUT_MS, MIN_HTTP_REQUEST_TIMEOUT_MS,
 };
+
+#[derive(Clone)]
+pub enum RequestState {
+    Executing(CanisterCallbackMethodName),
+    Completed,
+    Failed(String),
+}
 
 #[derive(Clone)]
 pub struct CanisterRequest {

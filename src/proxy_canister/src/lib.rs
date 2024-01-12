@@ -1,7 +1,6 @@
 mod constants;
 mod requests;
 mod state;
-mod types;
 mod utils;
 mod ws;
 
@@ -11,22 +10,22 @@ use ic_cdk_macros::*;
 use logger::log;
 use requests::validate_incoming_request;
 use std::{cell::RefCell, future::Future, pin::Pin, time::Duration};
+use proxy_canister_types::{HttpRequestEndpointArgs, HttpRequestEndpointResult, ProxyError};
 
 use state::ProxyState;
-pub use types::*;
 use utils::guard_caller_is_controller;
+
+use crate::requests::RequestState;
 
 thread_local! {
     /* flexible */ static STATE: RefCell<ProxyState> = RefCell::new(ProxyState::new());
 }
 
-#[cfg(crate_type = "cdylib")]
 #[init]
 fn init() {
     ws::init_ws();
 }
 
-#[cfg(crate_type = "cdylib")]
 #[post_upgrade]
 fn post_upgrade() {
     init();

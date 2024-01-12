@@ -25,10 +25,3 @@ pub enum InvalidRequest {
     TooManyHeaders,
     InvalidTimeout,
 }
-
-#[derive(Clone)]
-pub enum RequestState {
-    Executing(CanisterCallbackMethodName),
-    Completed,
-    Failed(String),
-}
