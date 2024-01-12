@@ -155,21 +155,21 @@ impl HttpConnection {
         match self.state {
             HttpConnectionState::WaitingForResponse(_) => {
                 log(&format!(
-                    "http_over_ws: HTTP request with id {} timed out",
+                    "http_over_ws: HTTP connection with id {} timed out",
                     self.id
                 ));
-                
+
                 self.state = HttpConnectionState::Failed(HttpFailureReason::RequestTimeout);
             }
             HttpConnectionState::Failed(_) => {
                 log(&format!(
-                    "http_over_ws: HTTP request with id {} timed out after it had already failed",
+                    "http_over_ws: HTTP connection with id {} timed out after it had already failed",
                     self.id
                 ));
             }
             HttpConnectionState::Success(_) => {
                 log(&format!(
-                    "http_over_ws: HTTP request with id {} timed out after it had already succeeded",
+                    "http_over_ws: HTTP connection with id {} timed out after it had already succeeded",
                     self.id
                 ));
             }
@@ -180,7 +180,7 @@ impl HttpConnection {
         match self.state {
             HttpConnectionState::WaitingForResponse(_) => {
                 log(&format!(
-                    "http_over_ws: HTTP request with id {} failed with reason {:?}",
+                    "http_over_ws: HTTP connection with id {} failed with reason {:?}",
                     self.id,
                     reason
                 ));
@@ -189,13 +189,13 @@ impl HttpConnection {
             },
             HttpConnectionState::Failed(_) => {
                 log(&format!(
-                    "http_over_ws: HTTP request with id {} failed after it had already failed",
+                    "http_over_ws: HTTP connection with id {} failed after it had already failed",
                     self.id
                 ));
             }
             HttpConnectionState::Success(_) => {
                 log(&format!(
-                    "http_over_ws: HTTP request with id {} failed after it had already succeeded",
+                    "http_over_ws: HTTP connection with id {} failed after it had already succeeded",
                     self.id
                 ));
             }

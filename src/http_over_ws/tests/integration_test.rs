@@ -76,17 +76,17 @@ fn test_execute_http_request_without_response() {
         None,
     );
 
-    let request_id = canister_actor
+    let connection_id = canister_actor
         .call_execute_http_request(request.clone(), None, false)
         .unwrap();
 
     let proxy_messages = proxy_client.get_http_over_ws_messages();
     assert_eq!(
         proxy_messages[0],
-        HttpOverWsMessage::HttpRequest(request_id, request),
+        HttpOverWsMessage::HttpRequest(connection_id, request),
     );
 
-    let http_response = canister_actor.query_get_http_response(request_id);
+    let http_response = canister_actor.query_get_http_response(connection_id);
     assert_eq!(http_response, Err(HttpFailureReason::Unknown));
 }
 
@@ -106,14 +106,14 @@ fn test_execute_http_request() {
         None,
     );
 
-    let request_id = canister_actor
+    let connection_id = canister_actor
         .call_execute_http_request(request.clone(), None, false)
         .unwrap();
 
     let proxy_messages = proxy_client.get_http_over_ws_messages();
     assert_eq!(
         proxy_messages[0],
-        HttpOverWsMessage::HttpRequest(request_id, request),
+        HttpOverWsMessage::HttpRequest(connection_id, request),
     );
 
     let http_response = HttpResponse {
@@ -122,11 +122,11 @@ fn test_execute_http_request() {
         body: vec![1, 2, 3],
     };
     proxy_client.send_http_over_ws_message(HttpOverWsMessage::HttpResponse(
-        request_id,
+        connection_id,
         http_response.clone(),
     ));
 
-    let res = canister_actor.query_get_http_response(request_id);
+    let res = canister_actor.query_get_http_response(connection_id);
     assert_eq!(res, Ok(http_response));
 
     let callback_res = canister_actor.query_get_callback_responses();
@@ -149,14 +149,14 @@ fn test_execute_http_request_with_body() {
         Some(vec![1, 2, 3]),
     );
 
-    let request_id = canister_actor
+    let connection_id = canister_actor
         .call_execute_http_request(request.clone(), None, false)
         .unwrap();
 
     let proxy_messages = proxy_client.get_http_over_ws_messages();
     assert_eq!(
         proxy_messages[0],
-        HttpOverWsMessage::HttpRequest(request_id, request),
+        HttpOverWsMessage::HttpRequest(connection_id, request),
     );
 
     let http_response = HttpResponse {
@@ -165,11 +165,11 @@ fn test_execute_http_request_with_body() {
         body: vec![1, 2, 3],
     };
     proxy_client.send_http_over_ws_message(HttpOverWsMessage::HttpResponse(
-        request_id,
+        connection_id,
         http_response.clone(),
     ));
 
-    let res = canister_actor.query_get_http_response(request_id);
+    let res = canister_actor.query_get_http_response(connection_id);
     assert_eq!(res, Ok(http_response));
 }
 
@@ -189,24 +189,24 @@ fn test_execute_http_request_with_proxy_error() {
         None,
     );
 
-    let request_id = canister_actor
+    let connection_id = canister_actor
         .call_execute_http_request(request.clone(), None, false)
         .unwrap();
 
     let proxy_messages = proxy_client.get_http_over_ws_messages();
     assert_eq!(
         proxy_messages[0],
-        HttpOverWsMessage::HttpRequest(request_id, request),
+        HttpOverWsMessage::HttpRequest(connection_id, request),
     );
 
     let error_message = String::from("proxy error");
 
     proxy_client.send_http_over_ws_message(HttpOverWsMessage::Error(
-        Some(request_id),
+        Some(connection_id),
         error_message.clone(),
     ));
 
-    let res = canister_actor.query_get_http_response(request_id);
+    let res = canister_actor.query_get_http_response(connection_id);
     assert_eq!(res, Err(HttpFailureReason::ProxyError(format!("http_over_ws: incoming error: {}", error_message))));
 }
 
@@ -228,11 +228,11 @@ fn test_execute_http_request_only_assigned_proxy() {
         None,
     );
 
-    let request_id = canister_actor
+    let connection_id = canister_actor
         .call_execute_http_request(request.clone(), None, false)
         .unwrap();
 
-    // discover to which proxy the request was assigned
+    // discover to which proxy the connection was assigned
     let proxy1_messages = proxy_client1.get_http_over_ws_messages();
     let proxy2_messages = proxy_client2.get_http_over_ws_messages();
     assert!(proxy1_messages.len() != proxy2_messages.len());
@@ -252,18 +252,18 @@ fn test_execute_http_request_only_assigned_proxy() {
     // test that the canister doesn't trap or break the state
     // if the response comes from an unassigned proxy
     idle_proxy.send_http_over_ws_message(HttpOverWsMessage::HttpResponse(
-        request_id,
+        connection_id,
         http_response.clone(),
     ));
-    let res = canister_actor.query_get_http_response(request_id);
+    let res = canister_actor.query_get_http_response(connection_id);
     assert_eq!(res, Err(HttpFailureReason::Unknown));
 
     assigned_proxy.send_http_over_ws_message(HttpOverWsMessage::HttpResponse(
-        request_id,
+        connection_id,
         http_response.clone(),
     ));
 
-    let res = canister_actor.query_get_http_response(request_id);
+    let res = canister_actor.query_get_http_response(connection_id);
     assert_eq!(res, Ok(http_response));
 }
 
@@ -289,21 +289,21 @@ fn test_execute_http_request_multiple() {
         None,
     );
 
-    let request_id1 = canister_actor
+    let connection_id1 = canister_actor
         .call_execute_http_request(request1.clone(), None, false)
         .unwrap();
-    let request_id2 = canister_actor
+    let connection_id2 = canister_actor
         .call_execute_http_request(request2.clone(), None, false)
         .unwrap();
 
     let proxy_messages = proxy_client.get_http_over_ws_messages();
     assert_eq!(
         proxy_messages[0],
-        HttpOverWsMessage::HttpRequest(request_id1, request1),
+        HttpOverWsMessage::HttpRequest(connection_id1, request1),
     );
     assert_eq!(
         proxy_messages[1],
-        HttpOverWsMessage::HttpRequest(request_id2, request2),
+        HttpOverWsMessage::HttpRequest(connection_id2, request2),
     );
 
     let http_response1 = HttpResponse {
@@ -318,17 +318,17 @@ fn test_execute_http_request_multiple() {
     };
 
     proxy_client.send_http_over_ws_message(HttpOverWsMessage::HttpResponse(
-        request_id1,
+        connection_id1,
         http_response1.clone(),
     ));
     proxy_client.send_http_over_ws_message(HttpOverWsMessage::HttpResponse(
-        request_id2,
+        connection_id2,
         http_response2.clone(),
     ));
 
-    let res1 = canister_actor.query_get_http_response(request_id1);
+    let res1 = canister_actor.query_get_http_response(connection_id1);
     assert_eq!(res1, Ok(http_response1));
-    let res2 = canister_actor.query_get_http_response(request_id2);
+    let res2 = canister_actor.query_get_http_response(connection_id2);
     assert_eq!(res2, Ok(http_response2));
 }
 
@@ -348,14 +348,14 @@ fn test_execute_http_request_before_timeout() {
         None,
     );
 
-    let request_id = canister_actor
+    let connection_id = canister_actor
         .call_execute_http_request(request.clone(), Some(10_000), false)
         .unwrap();
 
     let proxy_messages = proxy_client.get_http_over_ws_messages();
     assert_eq!(
         proxy_messages[0],
-        HttpOverWsMessage::HttpRequest(request_id, request),
+        HttpOverWsMessage::HttpRequest(connection_id, request),
     );
 
     // make some time pass, but not enough to trigger the timeout
@@ -367,11 +367,11 @@ fn test_execute_http_request_before_timeout() {
         body: vec![1, 2, 3],
     };
     proxy_client.send_http_over_ws_message(HttpOverWsMessage::HttpResponse(
-        request_id,
+        connection_id,
         http_response.clone(),
     ));
 
-    let res = canister_actor.query_get_http_response(request_id);
+    let res = canister_actor.query_get_http_response(connection_id);
     assert_eq!(res, Ok(http_response));
 }
 
@@ -391,35 +391,35 @@ fn test_execute_http_request_timeout_expired() {
         None,
     );
 
-    let request_id = canister_actor
+    let connection_id = canister_actor
         .call_execute_http_request(request.clone(), Some(10_000), false)
         .unwrap();
 
     let proxy_messages = proxy_client.get_http_over_ws_messages();
     assert_eq!(
         proxy_messages[0],
-        HttpOverWsMessage::HttpRequest(request_id, request),
+        HttpOverWsMessage::HttpRequest(connection_id, request),
     );
 
     // advance time so that the timeout expires
     test_env.advance_canister_time_ms(10_000);
 
-    let res = canister_actor.query_get_http_response(request_id);
+    let res = canister_actor.query_get_http_response(connection_id);
     assert_eq!(res, Err(HttpFailureReason::RequestTimeout));
 
     // even after sending the response,
-    // the request shouldn't change its state
+    // the connection shouldn't change its state
     let http_response = HttpResponse {
         status: Nat::from(200),
         headers: vec![TEST_HTTP_RESPONSE_HEADER.clone()],
         body: vec![1, 2, 3],
     };
     proxy_client.send_http_over_ws_message(HttpOverWsMessage::HttpResponse(
-        request_id,
+        connection_id,
         http_response.clone(),
     ));
 
-    let res = canister_actor.query_get_http_response(request_id);
+    let res = canister_actor.query_get_http_response(connection_id);
     assert_eq!(res, Err(HttpFailureReason::RequestTimeout));
 }
 
@@ -439,14 +439,14 @@ fn test_execute_http_request_with_callback() {
         None,
     );
 
-    let request_id = canister_actor
+    let connection_id = canister_actor
         .call_execute_http_request(request.clone(), None, true)
         .unwrap();
 
     let proxy_messages = proxy_client.get_http_over_ws_messages();
     assert_eq!(
         proxy_messages[0],
-        HttpOverWsMessage::HttpRequest(request_id, request),
+        HttpOverWsMessage::HttpRequest(connection_id, request),
     );
 
     let http_response = HttpResponse {
@@ -455,11 +455,11 @@ fn test_execute_http_request_with_callback() {
         body: vec![1, 2, 3],
     };
     proxy_client.send_http_over_ws_message(HttpOverWsMessage::HttpResponse(
-        request_id,
+        connection_id,
         http_response.clone(),
     ));
 
-    let res = canister_actor.query_get_http_response(request_id);
+    let res = canister_actor.query_get_http_response(connection_id);
     assert_eq!(res, Ok(http_response.clone()));
 
     let callback_res = canister_actor.query_get_callback_responses();
@@ -483,14 +483,14 @@ fn test_execute_http_request_duplicate_response() {
         None,
     );
 
-    let request_id = canister_actor
+    let connection_id = canister_actor
         .call_execute_http_request(request.clone(), None, true)
         .unwrap();
 
     let proxy_messages = proxy_client.get_http_over_ws_messages();
     assert_eq!(
         proxy_messages[0],
-        HttpOverWsMessage::HttpRequest(request_id, request),
+        HttpOverWsMessage::HttpRequest(connection_id, request),
     );
 
     let http_response1 = HttpResponse {
@@ -499,11 +499,11 @@ fn test_execute_http_request_duplicate_response() {
         body: vec![1, 2, 3],
     };
     proxy_client.send_http_over_ws_message(HttpOverWsMessage::HttpResponse(
-        request_id,
+        connection_id,
         http_response1.clone(),
     ));
 
-    let res = canister_actor.query_get_http_response(request_id);
+    let res = canister_actor.query_get_http_response(connection_id);
     assert_eq!(res, Ok(http_response1.clone()));
     let callback_res = canister_actor.query_get_callback_responses();
     assert_eq!(callback_res.len(), 1);
@@ -517,11 +517,11 @@ fn test_execute_http_request_duplicate_response() {
         body: vec![4, 5, 6],
     };
     proxy_client.send_http_over_ws_message(HttpOverWsMessage::HttpResponse(
-        request_id,
+        connection_id,
         http_response2.clone(),
     ));
 
-    let res = canister_actor.query_get_http_response(request_id);
+    let res = canister_actor.query_get_http_response(connection_id);
     assert_eq!(res, Ok(http_response1.clone()));
     let callback_res = canister_actor.query_get_callback_responses();
     assert_eq!(callback_res.len(), 1);

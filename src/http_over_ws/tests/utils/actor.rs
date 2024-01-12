@@ -58,11 +58,11 @@ impl<'a> CanisterActor<'a> {
         )
     }
 
-    pub fn query_get_http_response(&self, request_id: HttpConnectionId) -> GetHttpResponseResult {
+    pub fn query_get_http_response(&self, connection_id: HttpConnectionId) -> GetHttpResponseResult {
         self.test_env.query_canister_method_with_panic(
             self.principal,
             CanisterMethod::GetHttpResponse,
-            (request_id,),
+            (connection_id,),
         )
     }
 

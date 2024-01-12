@@ -11,14 +11,14 @@ thread_local! {
 
 pub struct State {
     connected_clients: ConnectedClients,
-    next_request_id: HttpConnectionId,
+    next_connection_id: HttpConnectionId,
 }
 
 impl State {
     pub fn new() -> Self {
         State {
             connected_clients: ConnectedClients::new(),
-            next_request_id: 0,
+            next_connection_id: 0,
         }
     }
 
@@ -31,16 +31,16 @@ impl State {
         self.connected_clients.remove_client(client_principal)
     }
 
-    pub fn assign_request(
+    pub fn assign_connection(
         &mut self,
-        request: HttpRequest,
+        connection: HttpRequest,
         callback: Option<HttpCallback>,
         timeout_ms: Option<HttpRequestTimeoutMs>,
     ) -> Result<(Principal, HttpConnectionId), HttpFailureReason> {
-        let request_id = self.next_request_id();
+        let connection_id = self.next_connection_id();
 
         let client_principal = self
-            .get_client_for_request(request_id)
+            .get_client_for_connection(connection_id)
             .ok_or(HttpFailureReason::ProxyError(String::from(
                 "no clients connected",
             )))?
@@ -50,33 +50,33 @@ impl State {
             Some(ic_cdk_timers::set_timer(
                 Duration::from_millis(millis),
                 move || {
-                    http_request_timeout(client_principal, request_id);
+                    http_connection_timeout(client_principal, connection_id);
                 },
             ))
         });
 
-        let request = HttpConnection::new(
-            request_id,
-            request,
+        let connection = HttpConnection::new(
+            connection_id,
+            connection,
             callback,
             timer_id,
         );
 
-        self.connected_clients.assign_request_to_client(&client_principal, request_id, request)?;
-        Ok((client_principal, request_id))
+        self.connected_clients.assign_connection_to_client(&client_principal, connection_id, connection)?;
+        Ok((client_principal, connection_id))
     }
 
-    fn next_request_id(&mut self) -> HttpConnectionId {
-        self.next_request_id += 1;
-        self.next_request_id
+    fn next_connection_id(&mut self) -> HttpConnectionId {
+        self.next_connection_id += 1;
+        self.next_connection_id
     } 
 
-    fn get_client_for_request(&self, request_id: HttpConnectionId) -> Option<Principal> {
+    fn get_client_for_connection(&self, connection_id: HttpConnectionId) -> Option<Principal> {
         let connected_clients_count = self.connected_clients.0.len();
         if connected_clients_count == 0 {
             return None;
         }
-        let chosen_client_index = request_id as usize % connected_clients_count;
+        let chosen_client_index = connection_id as usize % connected_clients_count;
         // chosen_client_index is in [0, connected_clients_count)
         // where connected_clients_count is the number of clients currently connected.
         // as no client is removed while executing this method,
@@ -92,54 +92,54 @@ impl State {
         )
     }
 
-    pub fn report_connection_failure(&mut self, client_principal: Principal, request_id: HttpConnectionId, reason: HttpFailureReason) {
+    pub fn report_connection_failure(&mut self, client_principal: Principal, connection_id: HttpConnectionId, reason: HttpFailureReason) {
         self.connected_clients
             .0
             .get_mut(&client_principal)
             .and_then(|client| {
-                client.report_connection_failure(request_id, reason);
+                client.report_connection_failure(connection_id, reason);
                 Some(client)
             });
     }
 
-    pub fn handle_http_response(&mut self, client_principal: Principal, request_id: HttpConnectionId, response: HttpResponse) -> Result<(), HttpFailureReason> {
+    pub fn handle_http_response(&mut self, client_principal: Principal, connection_id: HttpConnectionId, response: HttpResponse) -> Result<(), HttpFailureReason> {
         let client = self.connected_clients
             .0
             .get_mut(&client_principal)
             .ok_or(HttpFailureReason::ProxyError(String::from(
                 "proxy not connected",
             )))?;
-        let request = client.get_request_mut(request_id)?;
+        let connection = client.get_connection_mut(connection_id)?;
         
-        request.update_state(response)
+        connection.update_state(response)
     }
 
-    pub fn get_http_request(&self, request_id: HttpConnectionId) -> Option<HttpRequest> {
+    pub fn get_http_connection(&self, connection_id: HttpConnectionId) -> Option<HttpRequest> {
         for (_, proxy) in
             self
                 .connected_clients
                 .0
                 .iter() 
         {
-            for (id, request) in proxy.get_connections() {
-                if id.to_owned() == request_id {
-                    return Some(request.get_request());
+            for (id, connection) in proxy.get_connections() {
+                if id.to_owned() == connection_id {
+                    return Some(connection.get_request());
                 }
             }
         }
         None
     }
 
-    pub fn get_http_response(&self, request_id: HttpConnectionId) -> GetHttpResponseResult {
+    pub fn get_http_response(&self, connection_id: HttpConnectionId) -> GetHttpResponseResult {
         for (_, proxy) in
             self
                 .connected_clients
                 .0
                 .iter() 
         {
-            for (id, request) in proxy.get_connections() {
-                if id.to_owned() == request_id {
-                    return request.get_response();
+            for (id, connection) in proxy.get_connections() {
+                if id.to_owned() == connection_id {
+                    return connection.get_response();
                 }
             }
         }
@@ -148,25 +148,25 @@ impl State {
 }
 
 
-fn http_request_timeout(client_principal: Principal, request_id: HttpConnectionId) {
+fn http_connection_timeout(client_principal: Principal, connection_id: HttpConnectionId) {
     STATE.with(|state| {
         state.borrow_mut()
             .connected_clients
             .0
             .get_mut(&client_principal)
             .and_then(|client| {
-                let r = client.get_request_mut(request_id).and_then(|request| {
-                    request.set_timeout();
-                    Ok(request)
+                let r = client.get_connection_mut(connection_id).and_then(|connection| {
+                    connection.set_timeout();
+                    Ok(connection)
                 });
                 Some(r)
             });
         // if let Err(_) = state
         //     .borrow_mut()
         //     .connected_clients
-        //     .complete_request_for_client(client_principal, request_id)
+        //     .complete_connection_for_client(client_principal, connection_id)
         // {
-        //     log("cannot complete request");
+        //     log("cannot complete connection");
         // }
     });
 }
@@ -182,25 +182,25 @@ impl ConnectedClients {
         self.0.insert(client_principal, ClientProxy::new());
     }
 
-    fn assign_request_to_client(
+    fn assign_connection_to_client(
         &mut self,
         client_principal: &Principal,
-        request_id: HttpConnectionId,
-        request: HttpConnection,
+        connection_id: HttpConnectionId,
+        connection: HttpConnection,
     ) -> Result<(), HttpFailureReason> {
         let proxy = self.0
             .get_mut(&client_principal)
             .ok_or(HttpFailureReason::ProxyError(String::from(
                 "proxy not connected",
             )))?;
-        proxy.assign_connection(request_id, request);
+        proxy.assign_connection(connection_id, connection);
         Ok(())
     }
 
-    fn complete_request_for_client(
+    fn complete_connection_for_client(
         &mut self,
         client_principal: Principal,
-        request_id: HttpConnectionId,
+        connection_id: HttpConnectionId,
     ) -> Result<(), HttpFailureReason> {
         let client = self
             .0
@@ -208,7 +208,7 @@ impl ConnectedClients {
             .ok_or(HttpFailureReason::ProxyError(String::from(
                 "proxy not connected",
             )))?;
-        client.remove_connection(request_id)?;
+        client.remove_connection(connection_id)?;
         Ok(())
     }
 
@@ -231,42 +231,42 @@ impl ConnectedClients {
 //     use super::*;
 
 //     #[test]
-//     fn should_add_client_and_assign_request() {
+//     fn should_add_client_and_assign_connection() {
 //         let mut clients = ConnectedClients::new();
 //         let client_principal = Principal::anonymous();
 //         clients.add_client(client_principal);
 //         assert_eq!(clients.0.len(), 1);
 
-//         let request_id = 1;
-//         assert!(clients.assign_request(request_id).is_ok());
+//         let connection_id = 1;
+//         assert!(clients.assign_connection(connection_id).is_ok());
 //         assert!(clients
 //             .0
 //             .get(&client_principal)
 //             .expect("client is not connected")
-//             .contains(&request_id));
+//             .contains(&connection_id));
 //     }
 
 //     #[test]
-//     fn should_not_assign_request() {
+//     fn should_not_assign_connection() {
 //         let mut clients = ConnectedClients::new();
-//         assert!(clients.assign_request(1).is_err());
+//         assert!(clients.assign_connection(1).is_err());
 //     }
 
 //     #[test]
-//     fn should_complete_request() {
+//     fn should_complete_connection() {
 //         let mut clients = ConnectedClients::new();
 
 //         let client_principal = Principal::anonymous();
 //         clients.add_client(client_principal);
-//         let request_id = 1;
-//         assert!(clients.assign_request(request_id).is_ok());
+//         let connection_id = 1;
+//         assert!(clients.assign_connection(connection_id).is_ok());
 //         assert!(clients
-//             .complete_request_for_client(client_principal, request_id)
+//             .complete_connection_for_client(client_principal, connection_id)
 //             .is_ok());
 //     }
 
 //     #[test]
-//     fn should_distribute_requests_among_clients() {
+//     fn should_distribute_connections_among_clients() {
 //         let mut clients = ConnectedClients::new();
 
 //         let client_principal = Principal::from_text("aaaaa-aa").unwrap();
@@ -275,17 +275,17 @@ impl ConnectedClients {
 //         clients.add_client(client_principal);
 //         clients.add_client(another_client_principal);
 
-//         let request_id = 1;
-//         assert!(clients.assign_request(request_id).is_ok());
+//         let connection_id = 1;
+//         assert!(clients.assign_connection(connection_id).is_ok());
 
-//         let request_id = 2;
-//         assert!(clients.assign_request(request_id).is_ok());
+//         let connection_id = 2;
+//         assert!(clients.assign_connection(connection_id).is_ok());
 
-//         let request_id = 3;
-//         assert!(clients.assign_request(request_id).is_ok());
+//         let connection_id = 3;
+//         assert!(clients.assign_connection(connection_id).is_ok());
 
-//         let request_id = 4;
-//         assert!(clients.assign_request(request_id).is_ok());
+//         let connection_id = 4;
+//         assert!(clients.assign_connection(connection_id).is_ok());
 
 //         assert!(
 //             clients

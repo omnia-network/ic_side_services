@@ -28,7 +28,7 @@ impl ClientProxy {
             });
     }
 
-    pub fn get_request_mut(&mut self, connection_id: HttpConnectionId) -> Result<&mut HttpConnection, HttpFailureReason> {
+    pub fn get_connection_mut(&mut self, connection_id: HttpConnectionId) -> Result<&mut HttpConnection, HttpFailureReason> {
         self.connections.get_mut(&connection_id).ok_or(
             HttpFailureReason::RequestIdNotFound,
             )
@@ -40,7 +40,7 @@ impl ClientProxy {
 
     pub fn remove_connection(&mut self, connection_id: HttpConnectionId) -> Result<HttpConnection, HttpFailureReason> {
         self.connections.remove(&connection_id).ok_or(HttpFailureReason::ProxyError(String::from(
-            "client has not been assigned the request",
+            "client has not been assigned the connection",
         )))
     }
 }
