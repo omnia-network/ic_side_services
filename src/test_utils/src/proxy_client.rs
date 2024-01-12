@@ -21,10 +21,10 @@ pub struct ProxyClient<'a> {
 }
 
 impl<'a> ProxyClient<'a> {
-    pub fn new(test_env: &'a TestEnv) -> Self {
+    pub fn new(test_env: &'a TestEnv, canister_id: Principal) -> Self {
         Self {
             test_env,
-            canister_id: test_env.get_canisters().into_keys().next().unwrap(),
+            canister_id,
             client_key: generate_random_client_key(),
             gateway_principal: generate_random_principal(),
             outgoing_messages_sequence_num: 0,
@@ -115,6 +115,16 @@ impl<'a> ProxyClient<'a> {
         );
 
         assert!(res.is_ok());
+    }
+
+    pub fn expect_received_http_requests_count(&mut self, count: usize) {
+        let messages = self.get_http_over_ws_messages();
+
+        assert_eq!(messages.len(), count);
+
+        for msg in messages {
+            assert!(matches!(msg, HttpOverWsMessage::HttpRequest(..)));
+        }
     }
 }
 

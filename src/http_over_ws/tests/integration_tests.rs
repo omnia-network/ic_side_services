@@ -2,13 +2,13 @@ mod utils;
 
 use std::{path::PathBuf, sync::Once};
 
-use candid::Nat;
+use candid::{Nat, Principal};
 use http_over_ws::{
     HttpFailureReason, HttpMethod, HttpOverWsError, HttpOverWsMessage, HttpRequest, HttpResponse,
 };
 use lazy_static::lazy_static;
 use test_utils::{
-    ic_env::{get_test_env, load_canister_wasm_from_path, CanisterData},
+    ic_env::{get_test_env, load_canister_wasm_from_path, CanisterData, TestEnv},
     proxy_client::ProxyClient,
 };
 
@@ -43,6 +43,10 @@ fn reset_canister() {
     test_env.reset_canister(&canister_id);
 }
 
+fn get_test_canister_id(test_env: &TestEnv) -> Principal {
+    test_env.get_canisters().into_keys().next().unwrap()
+}
+
 #[test]
 fn test_execute_http_request_no_clients_connected() {
     setup();
@@ -72,7 +76,7 @@ fn test_execute_http_request_after_client_disconnected() {
     setup();
     reset_canister();
     let test_env = get_test_env();
-    let mut proxy_client = ProxyClient::new(&test_env);
+    let mut proxy_client = ProxyClient::new(&test_env, get_test_canister_id(&test_env));
     let canister_actor = CanisterActor::new(&test_env);
 
     proxy_client.setup_proxy();
@@ -100,7 +104,7 @@ fn test_execute_http_request_without_response() {
     setup();
     reset_canister();
     let test_env = get_test_env();
-    let mut proxy_client = ProxyClient::new(&test_env);
+    let mut proxy_client = ProxyClient::new(&test_env, get_test_canister_id(&test_env));
     let canister_actor = CanisterActor::new(&test_env);
 
     proxy_client.setup_proxy();
@@ -116,11 +120,7 @@ fn test_execute_http_request_without_response() {
         .call_execute_http_request(request.clone(), None, false)
         .unwrap();
 
-    let proxy_messages = proxy_client.get_http_over_ws_messages();
-    assert_eq!(
-        proxy_messages[0],
-        HttpOverWsMessage::HttpRequest(request_id, request),
-    );
+    proxy_client.expect_received_http_requests_count(1);
 
     let http_response = canister_actor.query_get_http_response(request_id);
     assert_eq!(http_response, Err(HttpFailureReason::Unknown));
@@ -131,7 +131,7 @@ fn test_execute_http_request() {
     setup();
     reset_canister();
     let test_env = get_test_env();
-    let mut proxy_client = ProxyClient::new(&test_env);
+    let mut proxy_client = ProxyClient::new(&test_env, get_test_canister_id(&test_env));
     let canister_actor = CanisterActor::new(&test_env);
 
     proxy_client.setup_proxy();
@@ -147,11 +147,7 @@ fn test_execute_http_request() {
         .call_execute_http_request(request.clone(), None, false)
         .unwrap();
 
-    let proxy_messages = proxy_client.get_http_over_ws_messages();
-    assert_eq!(
-        proxy_messages[0],
-        HttpOverWsMessage::HttpRequest(request_id, request),
-    );
+    proxy_client.expect_received_http_requests_count(1);
 
     let http_response = HttpResponse {
         status: Nat::from(200),
@@ -175,7 +171,7 @@ fn test_execute_http_request_with_body() {
     setup();
     reset_canister();
     let test_env = get_test_env();
-    let mut proxy_client = ProxyClient::new(&test_env);
+    let mut proxy_client = ProxyClient::new(&test_env, get_test_canister_id(&test_env));
     let canister_actor = CanisterActor::new(&test_env);
 
     proxy_client.setup_proxy();
@@ -191,11 +187,7 @@ fn test_execute_http_request_with_body() {
         .call_execute_http_request(request.clone(), None, false)
         .unwrap();
 
-    let proxy_messages = proxy_client.get_http_over_ws_messages();
-    assert_eq!(
-        proxy_messages[0],
-        HttpOverWsMessage::HttpRequest(request_id, request),
-    );
+    proxy_client.expect_received_http_requests_count(1);
 
     let http_response = HttpResponse {
         status: Nat::from(200),
@@ -216,7 +208,7 @@ fn test_execute_http_request_with_proxy_error() {
     setup();
     reset_canister();
     let test_env = get_test_env();
-    let mut proxy_client = ProxyClient::new(&test_env);
+    let mut proxy_client = ProxyClient::new(&test_env, get_test_canister_id(&test_env));
     let canister_actor = CanisterActor::new(&test_env);
 
     proxy_client.setup_proxy();
@@ -232,11 +224,7 @@ fn test_execute_http_request_with_proxy_error() {
         .call_execute_http_request(request.clone(), None, false)
         .unwrap();
 
-    let proxy_messages = proxy_client.get_http_over_ws_messages();
-    assert_eq!(
-        proxy_messages[0],
-        HttpOverWsMessage::HttpRequest(request_id, request),
-    );
+    proxy_client.expect_received_http_requests_count(1);
 
     let error_message = String::from("proxy error");
 
@@ -254,8 +242,8 @@ fn test_execute_http_request_only_assigned_proxy() {
     setup();
     reset_canister();
     let test_env = get_test_env();
-    let mut proxy_client1 = ProxyClient::new(&test_env);
-    let mut proxy_client2 = ProxyClient::new(&test_env);
+    let mut proxy_client1 = ProxyClient::new(&test_env, get_test_canister_id(&test_env));
+    let mut proxy_client2 = ProxyClient::new(&test_env, get_test_canister_id(&test_env));
     let canister_actor = CanisterActor::new(&test_env);
 
     proxy_client1.setup_proxy();
@@ -312,7 +300,7 @@ fn test_execute_http_request_multiple() {
     setup();
     reset_canister();
     let test_env = get_test_env();
-    let mut proxy_client = ProxyClient::new(&test_env);
+    let mut proxy_client = ProxyClient::new(&test_env, get_test_canister_id(&test_env));
     let canister_actor = CanisterActor::new(&test_env);
 
     proxy_client.setup_proxy();
@@ -378,7 +366,7 @@ fn test_execute_http_request_before_timeout() {
     setup();
     reset_canister();
     let test_env = get_test_env();
-    let mut proxy_client = ProxyClient::new(&test_env);
+    let mut proxy_client = ProxyClient::new(&test_env, get_test_canister_id(&test_env));
     let canister_actor = CanisterActor::new(&test_env);
 
     proxy_client.setup_proxy();
@@ -394,11 +382,7 @@ fn test_execute_http_request_before_timeout() {
         .call_execute_http_request(request.clone(), Some(10_000), false)
         .unwrap();
 
-    let proxy_messages = proxy_client.get_http_over_ws_messages();
-    assert_eq!(
-        proxy_messages[0],
-        HttpOverWsMessage::HttpRequest(request_id, request),
-    );
+    proxy_client.expect_received_http_requests_count(1);
 
     // make some time pass, but not enough to trigger the timeout
     test_env.advance_canister_time_ms(8_000);
@@ -422,7 +406,7 @@ fn test_execute_http_request_timeout_expired() {
     setup();
     reset_canister();
     let test_env = get_test_env();
-    let mut proxy_client = ProxyClient::new(&test_env);
+    let mut proxy_client = ProxyClient::new(&test_env, get_test_canister_id(&test_env));
     let canister_actor = CanisterActor::new(&test_env);
 
     proxy_client.setup_proxy();
@@ -438,11 +422,7 @@ fn test_execute_http_request_timeout_expired() {
         .call_execute_http_request(request.clone(), Some(10_000), false)
         .unwrap();
 
-    let proxy_messages = proxy_client.get_http_over_ws_messages();
-    assert_eq!(
-        proxy_messages[0],
-        HttpOverWsMessage::HttpRequest(request_id, request),
-    );
+    proxy_client.expect_received_http_requests_count(1);
 
     // advance time so that the timeout expires
     test_env.advance_canister_time_ms(10_000);
@@ -471,7 +451,7 @@ fn test_execute_http_request_with_callback() {
     setup();
     reset_canister();
     let test_env = get_test_env();
-    let mut proxy_client = ProxyClient::new(&test_env);
+    let mut proxy_client = ProxyClient::new(&test_env, get_test_canister_id(&test_env));
     let canister_actor = CanisterActor::new(&test_env);
 
     proxy_client.setup_proxy();
@@ -487,11 +467,7 @@ fn test_execute_http_request_with_callback() {
         .call_execute_http_request(request.clone(), None, true)
         .unwrap();
 
-    let proxy_messages = proxy_client.get_http_over_ws_messages();
-    assert_eq!(
-        proxy_messages[0],
-        HttpOverWsMessage::HttpRequest(request_id, request),
-    );
+    proxy_client.expect_received_http_requests_count(1);
 
     let http_response = HttpResponse {
         status: Nat::from(200),
@@ -516,7 +492,7 @@ fn test_execute_http_request_duplicate_response() {
     setup();
     reset_canister();
     let test_env = get_test_env();
-    let mut proxy_client = ProxyClient::new(&test_env);
+    let mut proxy_client = ProxyClient::new(&test_env, get_test_canister_id(&test_env));
     let canister_actor = CanisterActor::new(&test_env);
 
     proxy_client.setup_proxy();
@@ -532,11 +508,7 @@ fn test_execute_http_request_duplicate_response() {
         .call_execute_http_request(request.clone(), None, true)
         .unwrap();
 
-    let proxy_messages = proxy_client.get_http_over_ws_messages();
-    assert_eq!(
-        proxy_messages[0],
-        HttpOverWsMessage::HttpRequest(request_id, request),
-    );
+    proxy_client.expect_received_http_requests_count(1);
 
     let http_response1 = HttpResponse {
         status: Nat::from(200),
