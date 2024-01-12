@@ -1,4 +1,4 @@
-use crate::{STATE, http_connection::*};
+use crate::{http_connection::*, state::STATE};
 use candid::Principal;
 use logger::log;
 
@@ -39,7 +39,7 @@ pub fn try_handle_http_over_ws_message(
                 STATE.with(|state| {
                     state
                         .borrow_mut()
-                        .report_http_failure(client_principal, request_id, HttpFailureReason::ProxyError(e.clone()));
+                        .report_connection_failure(client_principal, request_id, HttpFailureReason::ProxyError(e.clone()));
                         
                 });
             }

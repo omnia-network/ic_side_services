@@ -1,62 +1,12 @@
-use std::{collections::{HashMap, BTreeMap}, time::Duration};
+use std::{collections::HashMap, time::Duration, cell::RefCell};
 use candid::Principal;
 
-use crate::{http_connection::{HttpFailureReason, HttpConnectionId}, HttpCallback, HttpRequest, HttpRequestTimeoutMs, STATE, HttpResponse, GetHttpResponseResult, HttpConnection};
+use crate::{http_connection::{HttpFailureReason, HttpConnectionId, HttpCallback, HttpRequest, HttpRequestTimeoutMs, HttpResponse, GetHttpResponseResult, HttpConnection}, client_proxy::ClientProxy};
 
-#[derive(Clone)]
-pub(crate) struct ConnectedClients(HashMap<Principal, BTreeMap<HttpConnectionId, HttpConnection>>);
 
-impl ConnectedClients {
-    fn new() -> Self {
-        ConnectedClients(HashMap::new())
-    }
-
-    fn add_client(&mut self, client_principal: Principal) {
-        self.0.insert(client_principal, BTreeMap::new());
-    }
-
-    fn assign_request_to_client(
-        &mut self,
-        client_principal: &Principal,
-        request_id: HttpConnectionId,
-        request: HttpConnection,
-    ) -> Result<(), HttpFailureReason> {
-        self.0
-            .get_mut(&client_principal)
-            .ok_or(HttpFailureReason::ProxyError(String::from(
-                "proxy not connected",
-            )))?
-            .insert(request_id, request);
-        Ok(())
-    }
-
-    fn complete_request_for_client(
-        &mut self,
-        client_principal: Principal,
-        request_id: HttpConnectionId,
-    ) -> Result<(), HttpFailureReason> {
-        let client = self
-            .0
-            .get_mut(&client_principal)
-            .ok_or(HttpFailureReason::ProxyError(String::from(
-                "proxy not connected",
-            )))?;
-        client
-            .remove(&request_id)
-            .ok_or(HttpFailureReason::ProxyError(String::from(
-                "client has not been assigned the request",
-            )))?;
-        Ok(())
-    }
-
-    fn remove_client(&mut self, client_principal: &Principal) -> Result<(), HttpFailureReason> {
-        self.0
-            .remove(client_principal)
-            .ok_or(HttpFailureReason::ProxyError(String::from(
-                "client not connected",
-            )))?;
-        Ok(())
-    }
+// local state
+thread_local! {
+    /* flexible */ pub static STATE: RefCell<State> = RefCell::new(State::new());
 }
 
 pub struct State {
@@ -142,17 +92,13 @@ impl State {
         )
     }
 
-    pub fn report_http_failure(&mut self, client_principal: Principal, request_id: HttpConnectionId, reason: HttpFailureReason) {
+    pub fn report_connection_failure(&mut self, client_principal: Principal, request_id: HttpConnectionId, reason: HttpFailureReason) {
         self.connected_clients
             .0
             .get_mut(&client_principal)
             .and_then(|client| {
-                client
-                    .get_mut(&request_id)
-                    .and_then(|r| {
-                        r.report_failure(reason);
-                        Some(r)
-                    })
+                client.report_connection_failure(request_id, reason);
+                Some(client)
             });
     }
 
@@ -163,23 +109,19 @@ impl State {
             .ok_or(HttpFailureReason::ProxyError(String::from(
                 "proxy not connected",
             )))?;
-        let request = client
-            .get_mut(&request_id)
-            .ok_or(
-            HttpFailureReason::RequestIdNotFound,
-            )?;
+        let request = client.get_request_mut(request_id)?;
         
         request.update_state(response)
     }
 
     pub fn get_http_request(&self, request_id: HttpConnectionId) -> Option<HttpRequest> {
-        for (_, requests) in
+        for (_, proxy) in
             self
                 .connected_clients
                 .0
                 .iter() 
         {
-            for (id, request) in requests {
+            for (id, request) in proxy.get_connections() {
                 if id.to_owned() == request_id {
                     return Some(request.get_request());
                 }
@@ -189,13 +131,13 @@ impl State {
     }
 
     pub fn get_http_response(&self, request_id: HttpConnectionId) -> GetHttpResponseResult {
-        for (_, requests) in
+        for (_, proxy) in
             self
                 .connected_clients
                 .0
                 .iter() 
         {
-            for (id, request) in requests {
+            for (id, request) in proxy.get_connections() {
                 if id.to_owned() == request_id {
                     return request.get_response();
                 }
@@ -213,13 +155,11 @@ fn http_request_timeout(client_principal: Principal, request_id: HttpConnectionI
             .0
             .get_mut(&client_principal)
             .and_then(|client| {
-                client
-                    .get_mut(&request_id)
-                    .and_then(|r| 
-                    {
-                        r.set_timeout();
-                        Some(r)
-                    })
+                let r = client.get_request_mut(request_id).and_then(|request| {
+                    request.set_timeout();
+                    Ok(request)
+                });
+                Some(r)
             });
         // if let Err(_) = state
         //     .borrow_mut()
@@ -229,6 +169,57 @@ fn http_request_timeout(client_principal: Principal, request_id: HttpConnectionI
         //     log("cannot complete request");
         // }
     });
+}
+
+pub(crate) struct ConnectedClients(HashMap<Principal, ClientProxy>);
+
+impl ConnectedClients {
+    fn new() -> Self {
+        ConnectedClients(HashMap::new())
+    }
+
+    fn add_client(&mut self, client_principal: Principal) {
+        self.0.insert(client_principal, ClientProxy::new());
+    }
+
+    fn assign_request_to_client(
+        &mut self,
+        client_principal: &Principal,
+        request_id: HttpConnectionId,
+        request: HttpConnection,
+    ) -> Result<(), HttpFailureReason> {
+        let proxy = self.0
+            .get_mut(&client_principal)
+            .ok_or(HttpFailureReason::ProxyError(String::from(
+                "proxy not connected",
+            )))?;
+        proxy.assign_connection(request_id, request);
+        Ok(())
+    }
+
+    fn complete_request_for_client(
+        &mut self,
+        client_principal: Principal,
+        request_id: HttpConnectionId,
+    ) -> Result<(), HttpFailureReason> {
+        let client = self
+            .0
+            .get_mut(&client_principal)
+            .ok_or(HttpFailureReason::ProxyError(String::from(
+                "proxy not connected",
+            )))?;
+        client.remove_connection(request_id)?;
+        Ok(())
+    }
+
+    fn remove_client(&mut self, client_principal: &Principal) -> Result<(), HttpFailureReason> {
+        self.0
+            .remove(client_principal)
+            .ok_or(HttpFailureReason::ProxyError(String::from(
+                "client not connected",
+            )))?;
+        Ok(())
+    }
 }
 
 
