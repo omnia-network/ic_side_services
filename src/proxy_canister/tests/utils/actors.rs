@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use candid::Principal;
 use http_over_ws::{HttpRequestId, HttpResponse};
+use pocket_ic::UserError;
 use proxy_canister_types::{HttpRequestEndpointArgs, HttpRequestEndpointResult};
 use test_utils::{ic_env::TestEnv, identity::generate_random_principal};
 
@@ -57,14 +58,10 @@ impl<'a> ProxyCanisterActor<'a> {
 
     pub fn call_http_request(
         &self,
-        args: HttpRequestEndpointArgs,
         caller: Principal,
-    ) -> HttpRequestEndpointResult {
-        self.test_env.call_canister_method_with_panic(
-            self.canister_id,
-            caller,
-            "http_request_via_proxy",
-            (args,),
-        )
+        args: HttpRequestEndpointArgs,
+    ) -> Result<HttpRequestEndpointResult, UserError> {
+        self.test_env
+            .call_canister_method(self.canister_id, caller, "http_request", (args,))
     }
 }

@@ -8,13 +8,17 @@ use std::{
 use candid::{encode_args, Principal};
 use http_over_ws::{HttpMethod, HttpRequest};
 use lazy_static::lazy_static;
+use pocket_ic::{ErrorCode, UserError};
 use proxy_canister_types::HttpRequestEndpointArgs;
 use test_utils::{
     ic_env::{get_test_env, load_canister_wasm_from_path, CanisterData},
     identity::generate_random_principal,
     proxy_client::ProxyClient,
 };
-use utils::{actors::TestUserCanisterActor, constants::TEST_URL};
+use utils::{
+    actors::{ProxyCanisterActor, TestUserCanisterActor},
+    constants::TEST_URL,
+};
 
 lazy_static! {
     static ref TEST_USER_CANISTER_WASM_MODULE: Vec<u8> =
@@ -72,6 +76,40 @@ fn get_test_user_canister_id() -> Principal {
 
 fn get_proxy_canister_id() -> Principal {
     PROXY_CANISTER_ID.lock().unwrap().clone()
+}
+
+#[test]
+fn test_proxy_canister_http_request_anonymous() {
+    setup();
+    reset_canisters();
+    let test_env = get_test_env();
+    let proxy_canister_id = get_proxy_canister_id();
+    let proxy_canister_actor = ProxyCanisterActor::new(&test_env, proxy_canister_id);
+
+    let res = proxy_canister_actor.call_http_request(
+        Principal::anonymous(),
+        HttpRequestEndpointArgs {
+            request: HttpRequest {
+                url: TEST_URL.to_string(),
+                method: HttpMethod::GET,
+                headers: vec![],
+                body: None,
+            },
+            timeout_ms: None,
+            callback_method_name: None,
+        },
+    );
+
+    assert_eq!(
+        res,
+        Err(UserError {
+            code: ErrorCode::CanisterCalledTrap,
+            description: format!(
+                "Canister {} trapped explicitly: Caller is anonymous",
+                proxy_canister_id
+            ),
+        })
+    )
 }
 
 #[test]

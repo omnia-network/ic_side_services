@@ -7,7 +7,7 @@ edition = { workspace = true }
 candid = { workspace = true }
 ic-websocket-cdk = { workspace = true }
 serde = { workspace = true }
-pocket-ic = "2.0.1"
+pocket-ic = { workspace = true }
 ring = "0.16.20"
 ic-agent = "0.30.0"
 rand = "0.8.5"

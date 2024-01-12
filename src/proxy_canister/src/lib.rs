@@ -12,10 +12,11 @@ use requests::validate_incoming_request;
 use std::{cell::RefCell, future::Future, pin::Pin, time::Duration};
 use proxy_canister_types::{HttpRequestEndpointArgs, HttpRequestEndpointResult, ProxyError};
 
-use state::ProxyState;
-use utils::guard_caller_is_controller;
-
-use crate::requests::RequestState;
+use crate::{
+    requests::RequestState,
+    utils::{guard_caller_is_not_anonymous, guard_caller_is_controller},
+    state::ProxyState,
+};
 
 thread_local! {
     /* flexible */ static STATE: RefCell<ProxyState> = RefCell::new(ProxyState::new());
@@ -34,6 +35,8 @@ fn post_upgrade() {
 #[update]
 fn http_request(args: HttpRequestEndpointArgs) -> HttpRequestEndpointResult {
     let canister_id = caller();
+
+    guard_caller_is_not_anonymous(&canister_id);
 
     validate_incoming_request(&args).map_err(|e| ProxyError::InvalidRequest(e))?;
 

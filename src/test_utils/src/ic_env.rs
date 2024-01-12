@@ -7,7 +7,7 @@ use std::{
 
 use candid::{decode_one, encode_args, utils::ArgumentEncoder, CandidType, Deserialize, Principal};
 use lazy_static::lazy_static;
-use pocket_ic::{PocketIc, PocketIcBuilder, WasmResult};
+use pocket_ic::{PocketIc, PocketIcBuilder, UserError, WasmResult};
 use std::fs::File;
 use std::io::Read;
 
@@ -97,6 +97,30 @@ impl TestEnv {
         self.tick_n(100);
     }
 
+    pub fn call_canister_method<T, S>(
+        &self,
+        canister_id: Principal,
+        caller: Principal,
+        method: &str,
+        args: T,
+    ) -> Result<S, UserError>
+    where
+        T: CandidType + ArgumentEncoder,
+        S: CandidType + for<'a> Deserialize<'a>,
+    {
+        self.pic
+            .update_call(
+                canister_id,
+                caller,
+                &method.to_string(),
+                encode_args(args).unwrap(),
+            )
+            .map(|res| match res {
+                WasmResult::Reply(bytes) => decode_one(&bytes).unwrap(),
+                _ => panic!("Expected reply"),
+            })
+    }
+
     /// # Panics
     /// if the call returns a [WasmResult::Reject].
     pub fn call_canister_method_with_panic<T, S>(
@@ -110,20 +134,8 @@ impl TestEnv {
         T: CandidType + ArgumentEncoder,
         S: CandidType + for<'a> Deserialize<'a>,
     {
-        let res = self
-            .pic
-            .update_call(
-                canister_id,
-                caller,
-                &method.to_string(),
-                encode_args(args).unwrap(),
-            )
-            .expect("Failed to call canister");
-
-        match res {
-            WasmResult::Reply(bytes) => decode_one(&bytes).unwrap(),
-            _ => panic!("Expected reply"),
-        }
+        self.call_canister_method(canister_id, caller, method, args)
+            .expect("Failed to call canister")
     }
 
     /// # Panics

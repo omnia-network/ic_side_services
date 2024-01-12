@@ -1622,6 +1622,7 @@ dependencies = [
  "ic-websocket-cdk",
  "lazy_static",
  "logger",
+ "pocket-ic",
  "proxy_canister_types",
  "serde",
  "test_utils",
