@@ -1,6 +1,4 @@
-use std::time::Duration;
-
-use crate::{types::*, CONNECTED_CLIENTS, HTTP_REQUESTS};
+use crate::{types::*, STATE};
 use candid::Principal;
 use logger::log;
 
@@ -21,8 +19,8 @@ pub fn try_handle_http_over_ws_message(
 
     match incoming_msg {
         HttpOverWsMessage::SetupProxyClient => {
-            CONNECTED_CLIENTS.with(|clients| {
-                clients.borrow_mut().add_client(client_principal);
+            STATE.with(|state| {
+                state.borrow_mut().add_client(client_principal);
             });
             log(&format!(
                 "http_over_ws: proxy client {} connected",
@@ -35,17 +33,14 @@ pub fn try_handle_http_over_ws_message(
         }
         HttpOverWsMessage::Error(request_id, err) => {
             let e = format!("http_over_ws: incoming error: {}", err);
-            log(&err);
+            log(&e);
 
             if let Some(request_id) = request_id {
-                HTTP_REQUESTS.with(|http_requests| {
-                    http_requests
+                STATE.with(|state| {
+                    state
                         .borrow_mut()
-                        .get_mut(&request_id)
-                        .and_then(|r| {
-                            r.failure_reason = Some(HttpFailureReason::ProxyError(err));
-                            Some(r)
-                        });
+                        .report_http_failure(client_principal, request_id, HttpFailureReason::ProxyError(e.clone()));
+                        
                 });
             }
             Err(HttpOverWsError::InvalidHttpMessage(
@@ -65,7 +60,7 @@ pub fn try_handle_http_over_ws_message(
 }
 
 pub fn try_disconnect_http_proxy(client_principal: Principal) -> Result<(), HttpFailureReason> {
-    CONNECTED_CLIENTS.with(|clients| clients.borrow_mut().remove_client(&client_principal))?;
+    STATE.with(|state| state.borrow_mut().remove_client(&client_principal))?;
 
     log(&format!(
         "http_over_ws: Client {} disconnected",
@@ -79,34 +74,11 @@ fn handle_http_response(
     request_id: HttpRequestId,
     response: HttpResponse,
 ) -> Result<(), HttpOverWsError> {
-    CONNECTED_CLIENTS.with(|clients| {
-        clients
+    STATE.with(|state| {
+        state
             .borrow_mut()
-            .complete_request_for_client(client_principal, request_id)
+            .handle_http_response(client_principal, request_id, response)
             .map_err(|e| HttpOverWsError::InvalidHttpMessage(e))
-    })?;
-
-    // assign response to a previous request
-    HTTP_REQUESTS.with(|http_requests| -> Result<(), HttpOverWsError> {
-        let mut h = http_requests.borrow_mut();
-        let r = h
-            .get_mut(&request_id)
-            .ok_or(HttpOverWsError::InvalidHttpMessage(
-                HttpFailureReason::RequestIdNotFound,
-            ))?;
-        r.response = Some(response.clone());
-
-        // response has been received, clear the timer if it was set
-        if let Some(timer_id) = r.timer_id.take() {
-            ic_cdk_timers::clear_timer(timer_id);
-        }
-
-        // if a callback was set, execute it
-        if let Some(callback) = r.callback {
-            ic_cdk::spawn(async move { callback(response).await });
-        }
-
-        Ok(())
     })?;
 
     log(&format!(
@@ -117,61 +89,15 @@ fn handle_http_response(
     Ok(())
 }
 
-fn http_request_timeout(client_principal: Principal, request_id: HttpRequestId) {
-    if let Err(_) = CONNECTED_CLIENTS.with(|clients| {
-        clients
-            .borrow_mut()
-            .complete_request_for_client(client_principal, request_id)
-    }) {
-        log("cannot complete request");
-    }
-
-    HTTP_REQUESTS.with(|http_requests| {
-        http_requests
-            .borrow_mut()
-            .get_mut(&request_id)
-            .and_then(|r| {
-                if r.response.is_none() {
-                    r.failure_reason = Some(HttpFailureReason::RequestTimeout);
-
-                    log(&format!(
-                        "http_over_ws: HTTP request with id {} timed out",
-                        request_id
-                    ));
-                }
-
-                Some(r)
-            });
-    });
-}
-
 pub fn execute_http_request(
     req: HttpRequest,
     callback: Option<HttpCallback>,
     timeout_ms: Option<HttpRequestTimeoutMs>,
     ws_send: fn(Principal, Vec<u8>) -> Result<(), String>,
 ) -> ExecuteHttpRequestResult {
-    let request_id = HTTP_REQUESTS.with(|http_requests| http_requests.borrow().len() + 1) as u32;
-
-    let assigned_client_principal = CONNECTED_CLIENTS
-        .with(|clients| clients.borrow_mut().assign_request(request_id))
+    let (assigned_client_principal, request_id) = STATE
+        .with(|state| state.borrow_mut().assign_request(req.clone(), callback, timeout_ms))
         .map_err(|e| HttpOverWsError::InvalidHttpMessage(e))?;
-
-    let timer_id = timeout_ms.and_then(|millis| {
-        Some(ic_cdk_timers::set_timer(
-            Duration::from_millis(millis),
-            move || {
-                http_request_timeout(assigned_client_principal, request_id);
-            },
-        ))
-    });
-
-    HTTP_REQUESTS.with(|http_requests| {
-        http_requests.borrow_mut().insert(
-            request_id,
-            HttpRequestState::new(req.clone(), callback, timer_id),
-        );
-    });
 
     ws_send(
         assigned_client_principal,
@@ -183,29 +109,15 @@ pub fn execute_http_request(
 }
 
 pub fn get_http_request(request_id: HttpRequestId) -> Option<HttpRequest> {
-    HTTP_REQUESTS.with(|http_requests| {
-        http_requests
-            .borrow()
-            .get(&request_id)
-            .map(|r| r.request.to_owned())
+    STATE.with(|state| {
+        state.borrow().get_http_request(request_id)
     })
 }
 
 pub fn get_http_response(request_id: HttpRequestId) -> GetHttpResponseResult {
-    HTTP_REQUESTS.with(|http_requests| {
-        http_requests
+    STATE.with(|state| {
+        state
             .borrow()
-            .get(&request_id)
-            .ok_or(HttpFailureReason::RequestIdNotFound)
-            .map(|r| {
-                r.response
-                    .as_ref()
-                    .ok_or(
-                        r.failure_reason
-                            .clone()
-                            .unwrap_or(HttpFailureReason::Unknown),
-                    )
-                    .cloned()
-            })?
+            .get_http_response(request_id)
     })
 }

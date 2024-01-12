@@ -207,7 +207,7 @@ fn test_execute_http_request_with_proxy_error() {
     ));
 
     let res = canister_actor.query_get_http_response(request_id);
-    assert_eq!(res, Err(HttpFailureReason::ProxyError(error_message)));
+    assert_eq!(res, Err(HttpFailureReason::ProxyError(format!("http_over_ws: incoming error: {}", error_message))));
 }
 
 #[test]
