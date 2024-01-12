@@ -4,14 +4,21 @@ version = "0.1.0"
 edition = "2021"
 
 [lib]
-crate-type = ["cdylib"]
+# enable the types to be imported in tests adding the `lib` crate type
+crate-type = ["cdylib", "lib"]
 
 [dependencies]
 candid = { workspace = true }
 ic-cdk = { workspace = true }
 ic-cdk-macros = { workspace = true }
-http_over_ws = { workspace = true }
+ic-cdk-timers = { workspace = true }
 serde = { workspace = true }
 url = { workspace = true }
 ic-websocket-cdk = { workspace = true }
+
 logger = { workspace = true }
+http_over_ws = { workspace = true }
+
+[dev-dependencies]
+lazy_static = { workspace = true }
+test_utils = { workspace = true }

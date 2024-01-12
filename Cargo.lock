@@ -1618,9 +1618,12 @@ dependencies = [
  "http_over_ws",
  "ic-cdk",
  "ic-cdk-macros",
+ "ic-cdk-timers",
  "ic-websocket-cdk",
+ "lazy_static",
  "logger",
  "serde",
+ "test_utils",
  "url",
 ]
 
@@ -2237,6 +2240,17 @@ dependencies = [
  "serde",
  "serde_cbor",
  "url",
+]
+
+[[package]]
+name = "test_user_canister"
+version = "0.1.0"
+dependencies = [
+ "candid",
+ "http_over_ws",
+ "ic-cdk",
+ "ic-cdk-macros",
+ "proxy_canister",
 ]
 
 [[package]]

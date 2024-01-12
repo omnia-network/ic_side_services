@@ -47,7 +47,9 @@ impl TestEnv {
 
     pub fn add_canister(&mut self, data: CanisterData) -> Principal {
         let app_subnet = self.pic.topology().get_app_subnets()[0];
-        let canister_id = self.pic.create_canister_on_subnet(None, None, app_subnet);
+        let canister_id = self
+            .pic
+            .create_canister_on_subnet(data.controller, None, app_subnet);
         self.pic.add_cycles(canister_id, 1_000_000_000_000_000);
 
         self.pic.install_canister(

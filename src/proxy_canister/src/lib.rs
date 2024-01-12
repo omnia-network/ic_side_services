@@ -7,24 +7,26 @@ mod ws;
 
 use http_over_ws::{execute_http_request, HttpRequestId, HttpResponse};
 use ic_cdk::caller;
-use ic_cdk_macros::{init, post_upgrade, query, update};
+use ic_cdk_macros::*;
 use logger::log;
 use requests::validate_incoming_request;
-use std::{cell::RefCell, future::Future, pin::Pin};
+use std::{cell::RefCell, future::Future, pin::Pin, time::Duration};
 
 use state::ProxyState;
-use types::*;
+pub use types::*;
 use utils::guard_caller_is_controller;
 
 thread_local! {
     /* flexible */ static STATE: RefCell<ProxyState> = RefCell::new(ProxyState::new());
 }
 
+#[cfg(crate_type = "cdylib")]
 #[init]
 fn init() {
     ws::init_ws();
 }
 
+#[cfg(crate_type = "cdylib")]
 #[post_upgrade]
 fn post_upgrade() {
     init();
@@ -96,34 +98,41 @@ async fn call_canister_endpoint_callback(request_id: HttpRequestId, res: HttpRes
                 method_name
             );
 
-            let res: Result<(), _> =
-                ic_cdk::call(r.canister_id, method_name.as_str(), (res,)).await;
-
-            STATE.with(|state| {
-                let mut state = state.borrow_mut();
-
-                match res {
-                    Ok(_) => {
-                        state.set_request_completed(request_id);
-                        log!(
-                            "[http_request]: request_id:{}, canister_id:{}, inter-canister call succeeded",
-                            request_id,
-                            r.canister_id
-                        );
-                    }
-                    Err(e) => {
-                        let err = format!("{:?}", e);
-
-                        state.set_request_failed(request_id, err.clone());
-
-                        log!(
-                            "[http_request]: request_id:{}, canister_id:{}, inter-canister call failed: {}",
-                            request_id,
-                            r.canister_id,
-                            err
-                        );
-                    }
-                };
+            // execute the inter-canister call in another call,
+            // so that we don't break the HttpOverWs and hence the WS connection
+            // TODO: test if this works as expected without any drawbacks
+            ic_cdk_timers::set_timer(Duration::from_millis(0), move || {
+                ic_cdk::spawn(async move {
+                    let canister_res: Result<(), _> =
+                        ic_cdk::call(r.canister_id, method_name.as_str(), (request_id, res,)).await;
+    
+                    STATE.with(|state| {
+                        let mut state = state.borrow_mut();
+    
+                        match canister_res {
+                            Ok(_) => {
+                                state.set_request_completed(request_id);
+                                log!(
+                                    "[http_request]: request_id:{}, canister_id:{}, inter-canister call succeeded",
+                                    request_id,
+                                    r.canister_id
+                                );
+                            }
+                            Err(e) => {
+                                let err = format!("{:?}", e);
+    
+                                state.set_request_failed(request_id, err.clone());
+    
+                                log!(
+                                    "[http_request]: request_id:{}, canister_id:{}, inter-canister call failed: {}",
+                                    request_id,
+                                    r.canister_id,
+                                    err
+                                );
+                            }
+                        };
+                    });
+                })
             });
 
             log!(
