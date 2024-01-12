@@ -7,6 +7,10 @@ type LogMessage = String;
 
 pub type Logs = Vec<(LogDateTime, LogMessage)>;
 
+thread_local! {
+  /* flexible */ static LOGGER: RefCell<Logger> = RefCell::new(Logger::new());
+}
+
 struct Logger {
     logs: Logs,
 }
@@ -22,10 +26,6 @@ impl Logger {
         self.logs
             .push((utc_datetime.as_iso_datetime(Some(3)), message.to_string()))
     }
-}
-
-thread_local! {
-  /* flexible */ static LOGGER: RefCell<Logger> = RefCell::new(Logger::new());
 }
 
 pub fn get_logs() -> Logs {

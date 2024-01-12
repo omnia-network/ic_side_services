@@ -18,11 +18,11 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = "0.10.8"
 url = { workspace = true }
-logger = { path = "../logger" }
+logger = { workspace = true }
 
 [dev-dependencies]
 pocket-ic = "2.0.1"
 ring = "0.16.20"
 ic-agent = "0.30.0"
 rand = "0.8.5"
-serde_cbor.workspace = true
+serde_cbor = { workspace = true }

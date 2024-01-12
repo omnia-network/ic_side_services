@@ -623,15 +623,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ce7134b9999ecaf8bcd65542e436736ef32ddca1b3e06094cb6ec5755203b80"
 
 [[package]]
-name = "flux_types"
-version = "0.0.1"
-dependencies = [
- "serde",
- "serde_derive",
- "serde_json",
-]
-
-[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1094,29 +1085,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "576c539151d4769fb4d1a0c25c4108dd18facd04c5695b02cf2d226ab4e43aa5"
 
 [[package]]
-name = "ic_side_services_backend"
-version = "0.1.0"
-dependencies = [
- "base64 0.21.5",
- "bs58",
- "candid",
- "flux_types",
- "hex",
- "http_over_ws",
- "ic-cdk",
- "ic-cdk-timers",
- "ic-websocket-cdk",
- "lazy_static",
- "logger",
- "pocket-ic",
- "ripemd",
- "serde",
- "serde_json",
- "sha2 0.10.8",
- "url",
-]
-
-[[package]]
 name = "idna"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1472,6 +1440,15 @@ name = "opaque-debug"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
+
+[[package]]
+name = "orchestrator_canister"
+version = "0.1.0"
+dependencies = [
+ "candid",
+ "ic-cdk",
+ "ic-cdk-macros",
+]
 
 [[package]]
 name = "overload"

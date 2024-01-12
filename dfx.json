@@ -1,11 +1,11 @@
 {
   "canisters": {
-    "ic_side_services_backend": {
-      "candid": "src/ic_side_services_backend/ic_side_services_backend.did",
-      "package": "ic_side_services_backend",
+    "orchestrator_canister": {
+      "candid": "src/orchestrator_canister/orchestrator_canister.did",
+      "package": "orchestrator_canister",
       "type": "rust",
       "declarations": {
-        "output": "./ic-http-request-executor/src/canister/declarations/ic_side_services_backend"
+        "output": "./ic-http-request-executor/src/canister/declarations/orchestrator_canister"
       }
     }
   },

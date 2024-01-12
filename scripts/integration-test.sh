@@ -9,4 +9,4 @@ set -e
 POCKET_IC_MUTE_SERVER=1 \
   POCKET_IC_BIN="$(pwd)/bin/pocket-ic" \
   TEST_CANISTER_WASM_PATH="$(pwd)/bin/test_canister.wasm" \
-  cargo test --test integration_test
+  cargo test -p http_over_ws --test integration_test
