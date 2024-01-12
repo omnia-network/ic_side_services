@@ -1,6 +1,5 @@
 use std::{collections::HashMap, time::Duration, cell::RefCell};
 use candid::Principal;
-
 use crate::{http_connection::{HttpFailureReason, HttpConnectionId, HttpCallback, HttpRequest, HttpRequestTimeoutMs, HttpResponse, GetHttpResponseResult, HttpConnection}, client_proxy::ClientProxy};
 
 
@@ -33,7 +32,7 @@ impl State {
 
     pub fn assign_connection(
         &mut self,
-        connection: HttpRequest,
+        request: HttpRequest,
         callback: Option<HttpCallback>,
         timeout_ms: Option<HttpRequestTimeoutMs>,
     ) -> Result<(Principal, HttpConnectionId), HttpFailureReason> {
@@ -57,7 +56,7 @@ impl State {
 
         let connection = HttpConnection::new(
             connection_id,
-            connection,
+            request,
             callback,
             timer_id,
         );
@@ -189,7 +188,7 @@ impl ConnectedProxies {
         connection: HttpConnection,
     ) -> Result<(), HttpFailureReason> {
         let proxy = self.0
-            .get_mut(&proxy_principal)
+            .get_mut(proxy_principal)
             .ok_or(HttpFailureReason::ProxyError(String::from(
                 "proxy not connected",
             )))?;
@@ -199,12 +198,12 @@ impl ConnectedProxies {
 
     fn complete_connection_for_proxy(
         &mut self,
-        proxy_principal: Principal,
+        proxy_principal: &Principal,
         connection_id: HttpConnectionId,
     ) -> Result<(), HttpFailureReason> {
         let proxy = self
             .0
-            .get_mut(&proxy_principal)
+            .get_mut(proxy_principal)
             .ok_or(HttpFailureReason::ProxyError(String::from(
                 "proxy not connected",
             )))?;
@@ -221,87 +220,3 @@ impl ConnectedProxies {
         Ok(())
     }
 }
-
-
-
-// #[cfg(test)]
-// mod tests {
-//     use candid::Principal;
-
-//     use super::*;
-
-//     #[test]
-//     fn should_add_proxy_and_assign_connection() {
-//         let mut proxies = ConnectedProxies::new();
-//         let proxy_principal = Principal::anonymous();
-//         proxies.add_proxy(proxy_principal);
-//         assert_eq!(proxies.0.len(), 1);
-
-//         let connection_id = 1;
-//         assert!(proxies.assign_connection(connection_id).is_ok());
-//         assert!(proxies
-//             .0
-//             .get(&proxy_principal)
-//             .expect("proxy is not connected")
-//             .contains(&connection_id));
-//     }
-
-//     #[test]
-//     fn should_not_assign_connection() {
-//         let mut proxies = ConnectedProxies::new();
-//         assert!(proxies.assign_connection(1).is_err());
-//     }
-
-//     #[test]
-//     fn should_complete_connection() {
-//         let mut proxies = ConnectedProxies::new();
-
-//         let proxy_principal = Principal::anonymous();
-//         proxies.add_proxy(proxy_principal);
-//         let connection_id = 1;
-//         assert!(proxies.assign_connection(connection_id).is_ok());
-//         assert!(proxies
-//             .complete_connection_for_proxy(proxy_principal, connection_id)
-//             .is_ok());
-//     }
-
-//     #[test]
-//     fn should_distribute_connections_among_proxies() {
-//         let mut proxies = ConnectedProxies::new();
-
-//         let proxy_principal = Principal::from_text("aaaaa-aa").unwrap();
-//         let another_proxy_principal = Principal::from_text("2chl6-4hpzw-vqaaa-aaaaa-c").unwrap();
-
-//         proxies.add_proxy(proxy_principal);
-//         proxies.add_proxy(another_proxy_principal);
-
-//         let connection_id = 1;
-//         assert!(proxies.assign_connection(connection_id).is_ok());
-
-//         let connection_id = 2;
-//         assert!(proxies.assign_connection(connection_id).is_ok());
-
-//         let connection_id = 3;
-//         assert!(proxies.assign_connection(connection_id).is_ok());
-
-//         let connection_id = 4;
-//         assert!(proxies.assign_connection(connection_id).is_ok());
-
-//         assert!(
-//             proxies
-//                 .0
-//                 .get(&proxy_principal)
-//                 .expect("proxy is not connected")
-//                 .len()
-//                 == 2
-//         );
-//         assert!(
-//             proxies
-//                 .0
-//                 .get(&another_proxy_principal)
-//                 .expect("proxy is not connected")
-//                 .len()
-//                 == 2
-//         );
-//     }
-// }
