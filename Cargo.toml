@@ -1,7 +1,7 @@
 [workspace]
 members = [
   "src/http_over_ws",
-  "src/orchestrator_canister",
+  "src/proxy_canister",
   "src/logger",
   "src/http_over_ws/tests/test_canister",
 ]
