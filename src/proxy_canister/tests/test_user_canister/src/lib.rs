@@ -19,7 +19,7 @@ fn init(proxy_canister_id: Principal) {
 }
 
 #[update]
-async fn call_proxy_canister(args: HttpRequestEndpointArgs) -> HttpRequestEndpointResult {
+async fn http_request_via_proxy(args: HttpRequestEndpointArgs) -> HttpRequestEndpointResult {
     let proxy_canister_id = PROXY_CANISTER_ID.with(|id| id.borrow().clone());
     let res: Result<(HttpRequestEndpointResult,), _> =
         ic_cdk::call(proxy_canister_id, "http_request", (args,)).await;
