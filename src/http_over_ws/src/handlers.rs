@@ -4,9 +4,9 @@ use logger::log;
 
 /// Called by the callback passed to the IC WS cdk when a new message is received.
 /// Checks if the message is an [HttpOverWsMessage], and if so it handles it.
-/// Otherwise, it returns [`HttpOverWsError::NotHttpOverWsType`] to signal the callback that it should treat it as a WS message sent by one of the WS clients (and not an HTTP Proxy)
+/// Otherwise, it returns [`HttpOverWsError::NotHttpOverWsType`] to signal the callback that it should treat it as a WS message sent by one of the WS proxies (and not an HTTP Proxy)
 pub fn try_handle_http_over_ws_message(
-    client_principal: Principal,
+    proxy_principal: Principal,
     serialized_message: Vec<u8>,
 ) -> Result<(), HttpOverWsError> {
     let incoming_msg = HttpOverWsMessage::from_bytes(&serialized_message)
@@ -14,22 +14,22 @@ pub fn try_handle_http_over_ws_message(
 
     log(&format!(
         "http_over_ws: incoming message: {:?} from {}",
-        incoming_msg, client_principal
+        incoming_msg, proxy_principal
     ));
 
     match incoming_msg {
         HttpOverWsMessage::SetupProxyClient => {
             STATE.with(|state| {
-                state.borrow_mut().add_client(client_principal);
+                state.borrow_mut().add_proxy(proxy_principal);
             });
             log(&format!(
-                "http_over_ws: proxy client {} connected",
-                client_principal
+                "http_over_ws: client proxy {} connected",
+                proxy_principal
             ));
             Ok(())
         }
         HttpOverWsMessage::HttpResponse(connection_id, response) => {
-            handle_http_response(client_principal, connection_id, response)
+            handle_http_response(proxy_principal, connection_id, response)
         }
         HttpOverWsMessage::Error(connection_id, err) => {
             let e = format!("http_over_ws: incoming error: {}", err);
@@ -39,7 +39,7 @@ pub fn try_handle_http_over_ws_message(
                 STATE.with(|state| {
                     state
                         .borrow_mut()
-                        .report_connection_failure(client_principal, connection_id, HttpFailureReason::ProxyError(e.clone()));
+                        .report_connection_failure(proxy_principal, connection_id, HttpFailureReason::ProxyError(e.clone()));
                         
                 });
             }
@@ -49,7 +49,7 @@ pub fn try_handle_http_over_ws_message(
         }
         HttpOverWsMessage::HttpRequest(_, _) => {
             let e = String::from(
-                "http_over_ws: proxy client is not allowed to send HTTP connections over WS",
+                "http_over_ws: client proxy is not allowed to send HTTP connections over WS",
             );
             log(&e);
             Err(HttpOverWsError::InvalidHttpMessage(
@@ -59,25 +59,25 @@ pub fn try_handle_http_over_ws_message(
     }
 }
 
-pub fn try_disconnect_http_proxy(client_principal: Principal) -> Result<(), HttpFailureReason> {
-    STATE.with(|state| state.borrow_mut().remove_client(&client_principal))?;
+pub fn try_disconnect_http_proxy(proxy_principal: Principal) -> Result<(), HttpFailureReason> {
+    STATE.with(|state| state.borrow_mut().remove_proxy(&proxy_principal))?;
 
     log(&format!(
         "http_over_ws: Client {} disconnected",
-        client_principal
+        proxy_principal
     ));
     Ok(())
 }
 
 fn handle_http_response(
-    client_principal: Principal,
+    proxy_principal: Principal,
     connection_id: HttpConnectionId,
     response: HttpResponse,
 ) -> Result<(), HttpOverWsError> {
     STATE.with(|state| {
         state
             .borrow_mut()
-            .handle_http_response(client_principal, connection_id, response)
+            .handle_http_response(proxy_principal, connection_id, response)
             .map_err(|e| HttpOverWsError::InvalidHttpMessage(e))
     })?;
 
@@ -95,12 +95,12 @@ pub fn execute_http_request(
     timeout_ms: Option<HttpRequestTimeoutMs>,
     ws_send: fn(Principal, Vec<u8>) -> Result<(), String>,
 ) -> ExecuteHttpRequestResult {
-    let (assigned_client_principal, connection_id) = STATE
+    let (assigned_proxy_principal, connection_id) = STATE
         .with(|state| state.borrow_mut().assign_connection(req.clone(), callback, timeout_ms))
         .map_err(|e| HttpOverWsError::InvalidHttpMessage(e))?;
 
     ws_send(
-        assigned_client_principal,
+        assigned_proxy_principal,
         HttpOverWsMessage::HttpRequest(connection_id, req).to_bytes(),
     )
     .unwrap();

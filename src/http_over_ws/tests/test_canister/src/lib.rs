@@ -35,7 +35,7 @@ pub fn init_ws() {
     ic_websocket_cdk::init(params);
 }
 
-// method called by the WS Gateway after receiving FirstMessage from the client
+// method called by the WS Gateway after receiving FirstMessage from the proxy
 #[update]
 pub fn ws_open(args: CanisterWsOpenArguments) -> CanisterWsOpenResult {
     ic_websocket_cdk::ws_open(args)
@@ -56,7 +56,7 @@ pub fn ws_message(
     ic_websocket_cdk::ws_message(args, msg_type)
 }
 
-// method called by the WS Gateway to get messages for all the clients it serves
+// method called by the WS Gateway to get messages for all the proxies it serves
 #[query]
 pub fn ws_get_messages(args: CanisterWsGetMessagesArguments) -> CanisterWsGetMessagesResult {
     ic_websocket_cdk::ws_get_messages(args)
