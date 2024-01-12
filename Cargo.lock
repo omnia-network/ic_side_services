@@ -1630,8 +1630,13 @@ name = "proxy_canister"
 version = "0.1.0"
 dependencies = [
  "candid",
+ "http_over_ws",
  "ic-cdk",
  "ic-cdk-macros",
+ "ic-websocket-cdk",
+ "logger",
+ "serde",
+ "url",
 ]
 
 [[package]]

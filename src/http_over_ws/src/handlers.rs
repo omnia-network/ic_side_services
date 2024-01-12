@@ -103,7 +103,7 @@ fn handle_http_response(
 
         // if a callback was set, execute it
         if let Some(callback) = r.callback {
-            ic_cdk::spawn(async move { callback(response).await });
+            ic_cdk::spawn(async move { callback(request_id, response).await });
         }
 
         Ok(())

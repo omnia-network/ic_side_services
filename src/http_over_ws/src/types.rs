@@ -46,7 +46,7 @@ impl HttpRequest {
 }
 
 pub type HttpResponse = ApiHttpResponse;
-pub type HttpCallback = fn(HttpResponse) -> Pin<Box<dyn Future<Output = ()>>>;
+pub type HttpCallback = fn(HttpRequestId, HttpResponse) -> Pin<Box<dyn Future<Output = ()>>>;
 
 pub type HttpRequestTimeoutMs = u64;
 
