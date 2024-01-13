@@ -7,7 +7,8 @@ use std::{
 
 use candid::{encode_args, Nat, Principal};
 use http_over_ws::{
-    HttpHeader, HttpMethod, HttpOverWsMessage, HttpRequest, HttpResponse, HttpResult,
+    HttpFailureReason, HttpHeader, HttpMethod, HttpOverWsMessage, HttpRequest, HttpResponse,
+    HttpResult,
 };
 use lazy_static::lazy_static;
 use pocket_ic::{ErrorCode, UserError};
@@ -393,7 +394,7 @@ fn test_http_request_with_timeout() {
                 body: None,
             },
             timeout_ms: Some(timeout_ms),
-            callback_method_name: None,
+            callback_method_name: Some("http_response_callback".to_string()),
         })
         .unwrap();
     proxy_client.expect_received_http_requests_count(1);
@@ -405,14 +406,61 @@ fn test_http_request_with_timeout() {
         .query_get_request_by_id_with_panic(get_proxy_canister_controller(), request_id)
         .unwrap();
     assert_eq!(req_state.canister_id, test_canister_id);
-    assert!(matches!(req_state.state, RequestState::Executing(None)));
-    // assert!(matches!(req_state.state, RequestState::Executed));
+    assert!(matches!(req_state.state, RequestState::Executed));
 
-    // let cb_responses = test_canister_actor.query_get_callback_results();
-    // assert_eq!(
-    //     cb_responses.get(&request_id).unwrap(),
-    //     &HttpResult::Failure(HttpFailureReason::RequestTimeout)
-    // );
+    // check that the callback was called
+    let cb_responses = test_canister_actor.query_get_callback_results();
+    assert_eq!(
+        cb_responses.get(&request_id).unwrap(),
+        &HttpResult::Failure(HttpFailureReason::RequestTimeout)
+    );
+}
+
+#[test]
+fn test_http_request_proxy_error() {
+    setup();
+    reset_canisters();
+    let test_env = get_test_env();
+    let mut proxy_client = ProxyClient::new(&test_env, get_proxy_canister_id());
+    let test_canister_id = get_test_user_canister_id();
+    let test_canister_actor = TestUserCanisterActor::new(&test_env, test_canister_id);
+    let proxy_canister_actor = ProxyCanisterActor::new(&test_env, get_proxy_canister_id());
+
+    proxy_client.setup_proxy();
+
+    let request_id = test_canister_actor
+        .call_http_request_via_proxy(HttpRequestEndpointArgs {
+            request: HttpRequest {
+                url: TEST_URL.to_string(),
+                method: HttpMethod::GET,
+                headers: vec![],
+                body: None,
+            },
+            timeout_ms: None,
+            callback_method_name: Some("http_response_callback".to_string()),
+        })
+        .unwrap();
+    proxy_client.expect_received_http_requests_count(1);
+
+    let proxy_error = "Error".to_string();
+
+    proxy_client.send_http_over_ws_message(HttpOverWsMessage::Error(
+        Some(request_id),
+        proxy_error.clone(),
+    ));
+
+    let req_state = proxy_canister_actor
+        .query_get_request_by_id_with_panic(get_proxy_canister_controller(), request_id)
+        .unwrap();
+    assert_eq!(req_state.canister_id, test_canister_id);
+    assert!(matches!(req_state.state, RequestState::Executed));
+
+    // check that the callback was called
+    let cb_responses = test_canister_actor.query_get_callback_results();
+    assert_eq!(
+        cb_responses.get(&request_id).unwrap(),
+        &HttpResult::Failure(HttpFailureReason::ProxyError(proxy_error))
+    );
 }
 
 #[test]
