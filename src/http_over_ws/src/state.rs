@@ -1,6 +1,6 @@
 use std::{collections::HashMap, time::Duration, cell::RefCell};
 use candid::Principal;
-use crate::{http_connection::{HttpFailureReason, HttpRequestId, HttpCallback, HttpRequest, HttpRequestTimeoutMs, HttpResponse, GetHttpResponseResult, HttpConnection}, client_proxy::ClientProxy};
+use crate::{http_connection::{HttpFailureReason, HttpRequestId, HttpCallback, HttpRequest, HttpRequestTimeoutMs, GetHttpResponseResult, HttpConnection}, client_proxy::ClientProxy, HttpResult};
 
 // local state
 thread_local! {
@@ -90,17 +90,7 @@ impl State {
         )
     }
 
-    pub(crate) fn report_connection_failure(&mut self, proxy_principal: Principal, request_id: HttpRequestId, reason: HttpFailureReason) {
-        self.connected_proxies
-            .0
-            .get_mut(&proxy_principal)
-            .and_then(|proxy| {
-                proxy.report_connection_failure(request_id, reason);
-                Some(proxy)
-            });
-    }
-
-    pub(crate) fn handle_http_response(&mut self, proxy_principal: Principal, request_id: HttpRequestId, response: HttpResponse) -> Result<(), HttpFailureReason> {
+    pub(crate) fn update_connection_state(&mut self, proxy_principal: Principal, request_id: HttpRequestId, http_result: HttpResult) -> Result<(), HttpFailureReason> {
         let proxy = self.connected_proxies
             .0
             .get_mut(&proxy_principal)
@@ -109,7 +99,7 @@ impl State {
             )))?;
         let connection = proxy.get_connection_mut(request_id)?;
         
-        connection.update_state(response)
+        connection.update_state(http_result)
     }
 
     pub(crate) fn get_http_connection(&self, request_id: HttpRequestId) -> Option<HttpRequest> {
@@ -154,7 +144,7 @@ fn http_connection_timeout(proxy_principal: Principal, request_id: HttpRequestId
             .get_mut(&proxy_principal)
             .and_then(|proxy| {
                 let r = proxy.get_connection_mut(request_id).and_then(|connection| {
-                    connection.set_timeout();
+                    connection.update_state(HttpResult::Failure(HttpFailureReason::RequestTimeout));
                     Ok(connection)
                 });
                 Some(r)

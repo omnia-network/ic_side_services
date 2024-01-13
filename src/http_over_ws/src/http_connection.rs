@@ -47,6 +47,12 @@ impl HttpRequest {
 }
 
 pub type HttpResponse = ApiHttpResponse;
+
+pub enum HttpResult {
+    Success(HttpResponse),
+    Failure(HttpFailureReason)
+}
+
 pub(crate) type HttpCallback =
     fn(HttpRequestId, HttpResponse) -> Pin<Box<dyn Future<Output = ()>>>;
 
@@ -121,79 +127,73 @@ impl HttpConnection {
         }
     }
 
-    pub(crate) fn update_state(&mut self, response: HttpResponse) -> Result<(), HttpFailureReason> {
+    pub(crate) fn update_state(&mut self, http_result: HttpResult) -> Result<(), HttpFailureReason> {
         match &mut self.state {
             HttpConnectionState::WaitingForResponse((timer_id, callback)) => {
-                // response has been received, clear the timer if it was set
-                if let Some(timer_id) = timer_id.take() {
-                    ic_cdk_timers::clear_timer(timer_id);
+                match http_result {
+                    HttpResult::Success(response) => {
+                        // response has been received, clear the timer if it was set
+                        if let Some(timer_id) = timer_id.take() {
+                            ic_cdk_timers::clear_timer(timer_id);
+                        }
+
+                        // if a callback was set, execute it
+                        if let Some(callback) = callback.take() {
+                            ic_cdk::spawn({
+                                let response = response.clone();
+                                let id = self.id;
+                                async move { callback(id, response).await }
+                            });
+                        }
+                        self.state = HttpConnectionState::Success(response);
+                        log(&format!(
+                            "http_over_ws: HTTP connection with id {} received response",
+                            self.id
+                        ));
+                        Ok(())
+                    }
+                    HttpResult::Failure(reason) => {
+                        log(&format!(
+                            "http_over_ws: HTTP connection with id {} failed with reason {:?}",
+                            self.id, reason
+                        ));
+        
+                        self.state = HttpConnectionState::Failed(reason.clone());
+
+                        Err(reason)
+                    }
                 }
-
-                // if a callback was set, execute it
-                if let Some(callback) = callback.take() {
-                    ic_cdk::spawn({
-                        let response = response.clone();
-                        let id = self.id;
-                        async move { callback(id, response).await }
-                    });
+            }
+            HttpConnectionState::Failed(e) => { 
+                match http_result {
+                    HttpResult::Success(_) => {
+                        // a response after a failure is ignored
+                        Ok(())
+                    }
+                    HttpResult::Failure(_) => {
+                        log(&format!(
+                            "http_over_ws: HTTP connection with id {} failed after it had already failed",
+                            self.id
+                        ));
+                        Err(e.clone())
+                    }
                 }
-                self.state = HttpConnectionState::Success(response);
-                Ok(())
             }
-            HttpConnectionState::Failed(e) => Err(e.to_owned()),
+            ,
             HttpConnectionState::Success(_) => {
-                // a second response is ignored
-                Ok(())
-            }
-        }
-    }
-
-    pub(crate) fn set_timeout(&mut self) {
-        match self.state {
-            HttpConnectionState::WaitingForResponse(_) => {
-                log(&format!(
-                    "http_over_ws: HTTP connection with id {} timed out",
-                    self.id
-                ));
-
-                self.state = HttpConnectionState::Failed(HttpFailureReason::RequestTimeout);
-            }
-            HttpConnectionState::Failed(_) => {
-                log(&format!(
-                    "http_over_ws: HTTP connection with id {} timed out after it had already failed",
-                    self.id
-                ));
-            }
-            HttpConnectionState::Success(_) => {
-                log(&format!(
-                    "http_over_ws: HTTP connection with id {} timed out after it had already succeeded",
-                    self.id
-                ));
-            }
-        }
-    }
-
-    pub(crate) fn report_failure(&mut self, reason: HttpFailureReason) {
-        match self.state {
-            HttpConnectionState::WaitingForResponse(_) => {
-                log(&format!(
-                    "http_over_ws: HTTP connection with id {} failed with reason {:?}",
-                    self.id, reason
-                ));
-
-                self.state = HttpConnectionState::Failed(reason);
-            }
-            HttpConnectionState::Failed(_) => {
-                log(&format!(
-                    "http_over_ws: HTTP connection with id {} failed after it had already failed",
-                    self.id
-                ));
-            }
-            HttpConnectionState::Success(_) => {
-                log(&format!(
-                    "http_over_ws: HTTP connection with id {} failed after it had already succeeded",
-                    self.id
-                ));
+                match http_result {
+                    HttpResult::Success(_) => {
+                        // a second response is ignored
+                        Ok(())
+                    }
+                    HttpResult::Failure(reason) => {
+                        log(&format!(
+                            "http_over_ws: HTTP connection with id {} failed after it had already succeeded",
+                            self.id
+                        ));
+                        Err(reason)
+                    }
+                }
             }
         }
     }

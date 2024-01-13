@@ -32,20 +32,7 @@ pub fn try_handle_http_over_ws_message(
             handle_http_response(proxy_principal, request_id, response)
         }
         HttpOverWsMessage::Error(request_id, err) => {
-            log(&err);
-
-            if let Some(request_id) = request_id {
-                STATE.with(|state| {
-                    state.borrow_mut().report_connection_failure(
-                        proxy_principal,
-                        request_id,
-                        HttpFailureReason::ProxyError(err.clone()),
-                    );
-                });
-            }
-            Err(HttpOverWsError::InvalidHttpMessage(
-                HttpFailureReason::ProxyError(err),
-            ))
+            handle_http_error(proxy_principal, request_id, err)
         }
         HttpOverWsMessage::HttpRequest(_, _) => {
             let e = String::from(
@@ -77,7 +64,7 @@ fn handle_http_response(
     STATE.with(|state| {
         state
             .borrow_mut()
-            .handle_http_response(proxy_principal, request_id, response)
+            .update_connection_state(proxy_principal, request_id, HttpResult::Success(response))
             .map_err(|e| HttpOverWsError::InvalidHttpMessage(e))
     })?;
 
@@ -87,6 +74,26 @@ fn handle_http_response(
     ));
 
     Ok(())
+}
+
+fn handle_http_error(
+    proxy_principal: Principal,
+    request_id: Option<HttpRequestId>,
+    err: String,
+) -> Result<(), HttpOverWsError> {
+    log(&err);
+
+    let reason = HttpFailureReason::ProxyError(err);
+
+    if let Some(request_id) = request_id {
+        STATE.with(|state| {
+            state
+                .borrow_mut()
+                .update_connection_state(proxy_principal, request_id, HttpResult::Failure(reason.clone()))
+                .map_err(|e| HttpOverWsError::InvalidHttpMessage(e))
+        })?;
+    }
+    Err(HttpOverWsError::InvalidHttpMessage(reason))
 }
 
 pub fn execute_http_request(

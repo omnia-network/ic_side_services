@@ -20,14 +20,6 @@ impl ClientProxy {
         self.connections.insert(request_id, connection);
     }
 
-    pub(crate) fn report_connection_failure(&mut self, request_id: HttpRequestId, reason: HttpFailureReason) {
-        self.connections.get_mut(&request_id)
-            .and_then(|connection| {
-                connection.report_failure(reason);
-                Some(connection)
-            });
-    }
-
     pub(crate) fn get_connection_mut(&mut self, request_id: HttpRequestId) -> Result<&mut HttpConnection, HttpFailureReason> {
         self.connections.get_mut(&request_id).ok_or(
             HttpFailureReason::RequestIdNotFound,
