@@ -2,6 +2,7 @@ import type { Principal } from '@dfinity/principal';
 import type { ActorMethod } from '@dfinity/agent';
 
 export type CanisterCallbackMethodName = string;
+export type CanisterId = Principal;
 export interface CanisterOutputCertifiedMessages {
   'messages' : Array<CanisterOutputMessage>,
   'cert' : Uint8Array | number[],
@@ -12,6 +13,10 @@ export interface CanisterOutputMessage {
   'key' : string,
   'content' : Uint8Array | number[],
   'client_key' : ClientKey,
+}
+export interface CanisterRequest {
+  'canister_id' : CanisterId,
+  'state' : RequestState,
 }
 export interface CanisterWsCloseArguments { 'client_key' : ClientKey }
 export type CanisterWsCloseResult = { 'Ok' : null } |
@@ -36,12 +41,22 @@ export interface ClientKey {
 }
 export type ClientPrincipal = Principal;
 export type GatewayPrincipal = Principal;
+export type HttpFailureReason = { 'ProxyError' : string } |
+  { 'RequestTimeout' : null };
 export interface HttpHeader { 'value' : string, 'name' : string }
 export type HttpMethod = { 'GET' : null } |
   { 'PUT' : null } |
   { 'DELETE' : null } |
   { 'HEAD' : null } |
   { 'POST' : null };
+export type HttpOverWsError = { 'NotHttpOverWsType' : string } |
+  { 'ProxyNotFound' : null } |
+  { 'NotYetReceived' : null } |
+  { 'ConnectionNotAssignedToProxy' : null } |
+  { 'RequestIdNotFound' : null } |
+  { 'NoProxiesConnected' : null } |
+  { 'InvalidHttpMessage' : null } |
+  { 'RequestFailed' : HttpFailureReason };
 export type HttpOverWsMessage = { 'Error' : [[] | [HttpRequestId], string] } |
   { 'HttpRequest' : [HttpRequestId, HttpRequest] } |
   { 'SetupProxyClient' : null } |
@@ -58,7 +73,7 @@ export interface HttpRequestEndpointArgs {
   'callback_method_name' : [] | [CanisterCallbackMethodName],
 }
 export type HttpRequestEndpointResult = { 'Ok' : HttpRequestId } |
-  { 'Err' : ProxyError };
+  { 'Err' : ProxyCanisterError };
 export type HttpRequestId = number;
 export type HttpRequestTimeoutMs = bigint;
 export interface HttpResponse {
@@ -69,8 +84,11 @@ export interface HttpResponse {
 export type InvalidRequest = { 'TooManyHeaders' : null } |
   { 'InvalidTimeout' : null } |
   { 'InvalidUrl' : string };
-export type ProxyError = { 'Generic' : string } |
+export type ProxyCanisterError = { 'HttpOverWs' : HttpOverWsError } |
   { 'InvalidRequest' : InvalidRequest };
+export type RequestState = { 'Failed' : string } |
+  { 'Executing' : [] | [CanisterCallbackMethodName] } |
+  { 'Successful' : null };
 export interface WebsocketMessage {
   'sequence_num' : bigint,
   'content' : Uint8Array | number[],
@@ -80,6 +98,7 @@ export interface WebsocketMessage {
 }
 export interface _SERVICE {
   'get_logs' : ActorMethod<[], Array<[string, string]>>,
+  'get_request_by_id' : ActorMethod<[HttpRequestId], [] | [CanisterRequest]>,
   'http_request' : ActorMethod<
     [HttpRequestEndpointArgs],
     HttpRequestEndpointResult

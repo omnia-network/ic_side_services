@@ -102,9 +102,26 @@ type HttpOverWsMessage = variant {
     HttpResponse : record { HttpRequestId; HttpResponse };
     Error : record { opt HttpRequestId; text };
 };
+
+type HttpFailureReason = variant {
+    RequestTimeout;
+    ProxyError : text;
+};
+
+type HttpOverWsError = variant {
+    NotHttpOverWsType : text;
+    InvalidHttpMessage;
+    ProxyNotFound;
+    RequestIdNotFound;
+    NotYetReceived;
+    NoProxiesConnected;
+    ConnectionNotAssignedToProxy;
+    RequestFailed : HttpFailureReason;
+};
 /* End HttpOverWs types */
 
 /* Proxy canister types */
+type CanisterId = principal;
 type CanisterCallbackMethodName = text;
 
 type HttpRequestEndpointArgs = record {
@@ -119,14 +136,25 @@ type InvalidRequest = variant {
     InvalidTimeout;
 };
 
-type ProxyError = variant {
+type ProxyCanisterError = variant {
     InvalidRequest : InvalidRequest;
-    Generic : text;
+    HttpOverWs : HttpOverWsError;
 };
 
 type HttpRequestEndpointResult = variant {
     Ok : HttpRequestId;
-    Err : ProxyError;
+    Err : ProxyCanisterError;
+};
+
+type RequestState = variant {
+    Executing : opt CanisterCallbackMethodName;
+    Successful;
+    Failed : text;
+};
+
+type CanisterRequest = record {
+    canister_id : CanisterId;
+    state : RequestState;
 };
 /* End Proxy canister types */
 
@@ -137,5 +165,6 @@ service : () -> {
     "ws_get_messages" : (CanisterWsGetMessagesArguments) -> (CanisterWsGetMessagesResult) query;
 
     "http_request" : (HttpRequestEndpointArgs) -> (HttpRequestEndpointResult);
+    "get_request_by_id" : (HttpRequestId) -> (opt CanisterRequest) query;
     "get_logs" : () -> (vec record { text; text }) query;
 };

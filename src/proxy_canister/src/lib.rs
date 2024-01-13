@@ -9,7 +9,8 @@ use ic_cdk::caller;
 use ic_cdk_macros::*;
 use logger::log;
 use proxy_canister_types::{
-    CanisterRequest, HttpRequestEndpointArgs, HttpRequestEndpointResult, ProxyError, RequestState,
+    CanisterRequest, HttpRequestEndpointArgs, HttpRequestEndpointResult, ProxyCanisterError,
+    RequestState,
 };
 use requests::validate_incoming_request;
 use std::cell::RefCell;
@@ -39,7 +40,7 @@ fn http_request(args: HttpRequestEndpointArgs) -> HttpRequestEndpointResult {
 
     guard_caller_is_not_anonymous(&canister_id);
 
-    validate_incoming_request(&args).map_err(|e| ProxyError::InvalidRequest(e))?;
+    validate_incoming_request(&args).map_err(|e| ProxyCanisterError::InvalidRequest(e))?;
 
     log!(
         "[http_request]: canister_id:{}, incoming request valid",
@@ -52,7 +53,7 @@ fn http_request(args: HttpRequestEndpointArgs) -> HttpRequestEndpointResult {
         args.timeout_ms,
         ws::send,
     )
-    .map_err(|_| ProxyError::Generic(String::from("http_over_ws error")))?;
+    .map_err(|e| ProxyCanisterError::HttpOverWs(e))?;
 
     STATE.with(|state| {
         let mut state = state.borrow_mut();

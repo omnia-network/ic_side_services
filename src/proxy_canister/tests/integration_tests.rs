@@ -9,7 +9,9 @@ use candid::{encode_args, Nat, Principal};
 use http_over_ws::{HttpHeader, HttpMethod, HttpOverWsMessage, HttpRequest, HttpResponse};
 use lazy_static::lazy_static;
 use pocket_ic::{ErrorCode, UserError};
-use proxy_canister_types::{HttpRequestEndpointArgs, InvalidRequest, ProxyError, RequestState};
+use proxy_canister_types::{
+    HttpRequestEndpointArgs, InvalidRequest, ProxyCanisterError, RequestState,
+};
 use test_utils::{
     ic_env::{get_test_env, load_canister_wasm_from_path, CanisterData},
     identity::generate_random_principal,
@@ -140,9 +142,9 @@ fn test_http_request_invalid() {
     });
     assert_eq!(
         res,
-        Err(ProxyError::InvalidRequest(InvalidRequest::InvalidUrl(
-            "relative URL without a base".to_string()
-        ))),
+        Err(ProxyCanisterError::InvalidRequest(
+            InvalidRequest::InvalidUrl("relative URL without a base".to_string())
+        )),
     );
     proxy_client.expect_received_http_requests_count(0);
 
@@ -165,7 +167,9 @@ fn test_http_request_invalid() {
     });
     assert_eq!(
         res,
-        Err(ProxyError::InvalidRequest(InvalidRequest::TooManyHeaders))
+        Err(ProxyCanisterError::InvalidRequest(
+            InvalidRequest::TooManyHeaders
+        ))
     );
     proxy_client.expect_received_http_requests_count(0);
 
@@ -182,7 +186,9 @@ fn test_http_request_invalid() {
     });
     assert_eq!(
         res,
-        Err(ProxyError::InvalidRequest(InvalidRequest::InvalidTimeout)),
+        Err(ProxyCanisterError::InvalidRequest(
+            InvalidRequest::InvalidTimeout
+        )),
     );
     proxy_client.expect_received_http_requests_count(0);
 
@@ -198,7 +204,9 @@ fn test_http_request_invalid() {
     });
     assert_eq!(
         res,
-        Err(ProxyError::InvalidRequest(InvalidRequest::InvalidTimeout)),
+        Err(ProxyCanisterError::InvalidRequest(
+            InvalidRequest::InvalidTimeout
+        )),
     );
     proxy_client.expect_received_http_requests_count(0);
 }

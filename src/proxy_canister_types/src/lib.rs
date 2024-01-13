@@ -1,5 +1,5 @@
 use candid::{CandidType, Deserialize, Principal};
-use http_over_ws::{HttpRequestId, HttpRequest, HttpRequestTimeoutMs};
+use http_over_ws::{HttpOverWsError, HttpRequest, HttpRequestId, HttpRequestTimeoutMs};
 
 pub type CanisterId = Principal;
 pub type CanisterCallbackMethodName = String;
@@ -11,12 +11,12 @@ pub struct HttpRequestEndpointArgs {
     pub callback_method_name: Option<CanisterCallbackMethodName>,
 }
 
-pub type HttpRequestEndpointResult = Result<HttpRequestId, ProxyError>;
+pub type HttpRequestEndpointResult = Result<HttpRequestId, ProxyCanisterError>;
 
 #[derive(CandidType, Deserialize, Debug, PartialEq, Eq)]
-pub enum ProxyError {
+pub enum ProxyCanisterError {
     InvalidRequest(InvalidRequest),
-    Generic(String),
+    HttpOverWs(HttpOverWsError),
 }
 
 #[derive(CandidType, Deserialize, Debug, PartialEq, Eq)]

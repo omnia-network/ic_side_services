@@ -1,4 +1,16 @@
 export const idlFactory = ({ IDL }) => {
+  const HttpRequestId = IDL.Nat32;
+  const CanisterId = IDL.Principal;
+  const CanisterCallbackMethodName = IDL.Text;
+  const RequestState = IDL.Variant({
+    'Failed' : IDL.Text,
+    'Executing' : IDL.Opt(CanisterCallbackMethodName),
+    'Successful' : IDL.Null,
+  });
+  const CanisterRequest = IDL.Record({
+    'canister_id' : CanisterId,
+    'state' : RequestState,
+  });
   const HttpMethod = IDL.Variant({
     'GET' : IDL.Null,
     'PUT' : IDL.Null,
@@ -14,25 +26,37 @@ export const idlFactory = ({ IDL }) => {
     'headers' : IDL.Vec(HttpHeader),
   });
   const HttpRequestTimeoutMs = IDL.Nat64;
-  const CanisterCallbackMethodName = IDL.Text;
   const HttpRequestEndpointArgs = IDL.Record({
     'request' : HttpRequest,
     'timeout_ms' : IDL.Opt(HttpRequestTimeoutMs),
     'callback_method_name' : IDL.Opt(CanisterCallbackMethodName),
   });
-  const HttpRequestId = IDL.Nat32;
+  const HttpFailureReason = IDL.Variant({
+    'ProxyError' : IDL.Text,
+    'RequestTimeout' : IDL.Null,
+  });
+  const HttpOverWsError = IDL.Variant({
+    'NotHttpOverWsType' : IDL.Text,
+    'ProxyNotFound' : IDL.Null,
+    'NotYetReceived' : IDL.Null,
+    'ConnectionNotAssignedToProxy' : IDL.Null,
+    'RequestIdNotFound' : IDL.Null,
+    'NoProxiesConnected' : IDL.Null,
+    'InvalidHttpMessage' : IDL.Null,
+    'RequestFailed' : HttpFailureReason,
+  });
   const InvalidRequest = IDL.Variant({
     'TooManyHeaders' : IDL.Null,
     'InvalidTimeout' : IDL.Null,
     'InvalidUrl' : IDL.Text,
   });
-  const ProxyError = IDL.Variant({
-    'Generic' : IDL.Text,
+  const ProxyCanisterError = IDL.Variant({
+    'HttpOverWs' : HttpOverWsError,
     'InvalidRequest' : InvalidRequest,
   });
   const HttpRequestEndpointResult = IDL.Variant({
     'Ok' : HttpRequestId,
-    'Err' : ProxyError,
+    'Err' : ProxyCanisterError,
   });
   const ClientPrincipal = IDL.Principal;
   const ClientKey = IDL.Record({
@@ -96,6 +120,11 @@ export const idlFactory = ({ IDL }) => {
     'get_logs' : IDL.Func(
         [],
         [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text))],
+        ['query'],
+      ),
+    'get_request_by_id' : IDL.Func(
+        [HttpRequestId],
+        [IDL.Opt(CanisterRequest)],
         ['query'],
       ),
     'http_request' : IDL.Func(
