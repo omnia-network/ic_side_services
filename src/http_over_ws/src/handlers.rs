@@ -71,7 +71,7 @@ pub fn try_disconnect_http_proxy(proxy_principal: Principal) -> Result<(), HttpF
 
 fn handle_http_response(
     proxy_principal: Principal,
-    connection_id: HttpConnectionId,
+    connection_id: HttpRequestId,
     response: HttpResponse,
 ) -> Result<(), HttpOverWsError> {
     STATE.with(|state| {
@@ -112,10 +112,10 @@ pub fn execute_http_request(
     Ok(connection_id)
 }
 
-pub fn get_http_connection(connection_id: HttpConnectionId) -> Option<HttpRequest> {
+pub fn get_http_connection(connection_id: HttpRequestId) -> Option<HttpRequest> {
     STATE.with(|state| state.borrow().get_http_connection(connection_id))
 }
 
-pub fn get_http_response(connection_id: HttpConnectionId) -> GetHttpResponseResult {
+pub fn get_http_response(connection_id: HttpRequestId) -> GetHttpResponseResult {
     STATE.with(|state| state.borrow().get_http_response(connection_id))
 }

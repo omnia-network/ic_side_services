@@ -6,9 +6,9 @@ use ic_cdk_timers::TimerId;
 use logger::log;
 use std::{future::Future, pin::Pin};
 
-pub type HttpConnectionId = u64;
+pub type HttpRequestId = u64;
 
-pub type ExecuteHttpRequestResult = Result<HttpConnectionId, HttpOverWsError>;
+pub type ExecuteHttpRequestResult = Result<HttpRequestId, HttpOverWsError>;
 pub type GetHttpResponseResult = Result<HttpResponse, HttpFailureReason>;
 
 #[derive(CandidType, Clone, Debug, Deserialize, PartialEq, Eq)]
@@ -48,16 +48,16 @@ impl HttpRequest {
 
 pub type HttpResponse = ApiHttpResponse;
 pub(crate) type HttpCallback =
-    fn(HttpConnectionId, HttpResponse) -> Pin<Box<dyn Future<Output = ()>>>;
+    fn(HttpRequestId, HttpResponse) -> Pin<Box<dyn Future<Output = ()>>>;
 
 pub type HttpRequestTimeoutMs = u64;
 
 #[derive(CandidType, Debug, Deserialize, PartialEq, Eq)]
 pub enum HttpOverWsMessage {
     SetupProxyClient,
-    HttpRequest(HttpConnectionId, HttpRequest),
-    HttpResponse(HttpConnectionId, HttpResponse),
-    Error(Option<HttpConnectionId>, String),
+    HttpRequest(HttpRequestId, HttpRequest),
+    HttpResponse(HttpRequestId, HttpResponse),
+    Error(Option<HttpRequestId>, String),
 }
 
 impl HttpOverWsMessage {
@@ -85,19 +85,19 @@ pub enum HttpFailureReason {
     ProxyError(String),
     /// Used when retrieving the request from the state
     /// and the request is not found.
-    ConnectionIdNotFound,
+    RequestIdNotFound,
     NotYetReceived,
 }
 
 pub(crate) struct HttpConnection {
-    id: HttpConnectionId,
+    id: HttpRequestId,
     request: HttpRequest,
     state: HttpConnectionState,
 }
 
 impl HttpConnection {
     pub(crate) fn new(
-        id: HttpConnectionId,
+        id: HttpRequestId,
         request: HttpRequest,
         callback: Option<HttpCallback>,
         timer_id: Option<TimerId>,
