@@ -1,5 +1,5 @@
 import IcWebSocket, { createWsConfig, generateRandomIdentity } from "ic-websocket-js";
-import { ic_side_services_backend, canisterId } from "./src/canister/declarations/ic_side_services_backend";
+import { proxy_canister, canisterId } from "./src/canister/declarations/proxy_canister";
 
 /**
  * How long to wait before trying to reconnect
@@ -12,7 +12,7 @@ const gatewayUrl = process.env.IC_WS_GATEWAY_URL as string;
 
 const wsConfig = createWsConfig({
   canisterId,
-  canisterActor: ic_side_services_backend,
+  canisterActor: proxy_canister,
   networkUrl: icNetworkUrl,
   identity: generateRandomIdentity(),
 });

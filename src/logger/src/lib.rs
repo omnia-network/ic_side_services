@@ -38,3 +38,10 @@ pub fn log(message: &str) {
         logger.borrow_mut().log(message);
     });
 }
+
+#[macro_export]
+macro_rules! log {
+    ($($arg:tt)*) => {
+        log(&format!($($arg)*));
+    }
+}

@@ -49,7 +49,7 @@ fn execute_http_request(
 ) -> ExecuteHttpRequestResult {
     http_over_ws::execute_http_request(
         req,
-        with_callback.then_some(|res| Box::pin(callback(res))),
+        with_callback.then_some(|_, res| Box::pin(callback(res))),
         timeout_ms,
         ic_websocket_cdk::send,
     )

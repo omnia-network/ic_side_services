@@ -37,10 +37,11 @@ pub fn try_handle_http_over_ws_message(
 
             if let Some(connection_id) = connection_id {
                 STATE.with(|state| {
-                    state
-                        .borrow_mut()
-                        .report_connection_failure(proxy_principal, connection_id, HttpFailureReason::ProxyError(e.clone()));
-                        
+                    state.borrow_mut().report_connection_failure(
+                        proxy_principal,
+                        connection_id,
+                        HttpFailureReason::ProxyError(e.clone()),
+                    );
                 });
             }
             Err(HttpOverWsError::InvalidHttpMessage(
@@ -96,7 +97,11 @@ pub fn execute_http_request(
     ws_send: fn(Principal, Vec<u8>) -> Result<(), String>,
 ) -> ExecuteHttpRequestResult {
     let (assigned_proxy_principal, connection_id) = STATE
-        .with(|state| state.borrow_mut().assign_connection(req.clone(), callback, timeout_ms))
+        .with(|state| {
+            state
+                .borrow_mut()
+                .assign_connection(req.clone(), callback, timeout_ms)
+        })
         .map_err(|e| HttpOverWsError::InvalidHttpMessage(e))?;
 
     ws_send(
@@ -109,15 +114,9 @@ pub fn execute_http_request(
 }
 
 pub fn get_http_connection(connection_id: HttpConnectionId) -> Option<HttpRequest> {
-    STATE.with(|state| {
-        state.borrow().get_http_connection(connection_id)
-    })
+    STATE.with(|state| state.borrow().get_http_connection(connection_id))
 }
 
 pub fn get_http_response(connection_id: HttpConnectionId) -> GetHttpResponseResult {
-    STATE.with(|state| {
-        state
-            .borrow()
-            .get_http_response(connection_id)
-    })
+    STATE.with(|state| state.borrow().get_http_response(connection_id))
 }

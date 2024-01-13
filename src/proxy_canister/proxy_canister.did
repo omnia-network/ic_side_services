@@ -66,7 +66,7 @@ type CanisterWsGetMessagesResult = variant {
 /* End WebSocket types */
 
 /* HttpOverWs types */
-type HttpConnectionId = nat32;
+type HttpRequestId = nat32;
 
 type HttpMethod = variant {
     GET;
@@ -79,18 +79,6 @@ type HttpMethod = variant {
 type HttpHeader = record {
     name : text;
     value : text;
-};
-
-type HttpOverWsError = variant {
-    NotHttpOverWsType : text;
-    InvalidHttpMessage : HttpFailureReason;
-};
-
-type HttpFailureReason = variant {
-    RequestTimeout;
-    ProxyError : text;
-    ConnectionIdNotFound;
-    NotYetReceived;
 };
 
 type HttpRequest = record {
@@ -108,25 +96,46 @@ type HttpResponse = record {
     body : blob;
 };
 
-type GetHttpResponseResult = variant {
-    Ok : HttpResponse;
-    Err : HttpFailureReason;
+type HttpOverWsMessage = variant {
+    SetupProxyClient;
+    HttpRequest : record { HttpRequestId; HttpRequest };
+    HttpResponse : record { HttpRequestId; HttpResponse };
+    Error : record { opt HttpRequestId; text };
 };
 /* End HttpOverWs types */
 
-/* Application types */
-type AppMessage = record {
-    text : text;
+/* Proxy canister types */
+type CanisterCallbackMethodName = text;
+
+type HttpRequestEndpointArgs = record {
+    request : HttpRequest;
+    timeout_ms : opt HttpRequestTimeoutMs;
+    callback_method_name : opt CanisterCallbackMethodName;
 };
-/* End Application types */
+
+type InvalidRequest = variant {
+    InvalidUrl : text;
+    TooManyHeaders;
+    InvalidTimeout;
+};
+
+type ProxyError = variant {
+    InvalidRequest : InvalidRequest;
+    Generic : text;
+};
+
+type HttpRequestEndpointResult = variant {
+    Ok : HttpRequestId;
+    Err : ProxyError;
+};
+/* End Proxy canister types */
 
 service : () -> {
     "ws_open" : (CanisterWsOpenArguments) -> (CanisterWsOpenResult);
     "ws_close" : (CanisterWsCloseArguments) -> (CanisterWsCloseResult);
-    "ws_message" : (CanisterWsMessageArguments, opt AppMessage) -> (CanisterWsMessageResult);
+    "ws_message" : (CanisterWsMessageArguments, opt HttpOverWsMessage) -> (CanisterWsMessageResult);
     "ws_get_messages" : (CanisterWsGetMessagesArguments) -> (CanisterWsGetMessagesResult) query;
 
-    "execute_http_request" : (HttpRequest, opt HttpRequestTimeoutMs, bool) -> (HttpConnectionId, HttpOverWsError);
-    "get_http_response" : (HttpConnectionId) -> (GetHttpResponseResult) query;
-    "get_callback_responses" : () -> (vec HttpResponse) query;
+    "http_request" : (HttpRequestEndpointArgs) -> (HttpRequestEndpointResult);
+    "get_logs" : () -> (vec record { text; text }) query;
 };
