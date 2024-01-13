@@ -28,17 +28,17 @@ pub fn try_handle_http_over_ws_message(
             ));
             Ok(())
         }
-        HttpOverWsMessage::HttpResponse(connection_id, response) => {
-            handle_http_response(proxy_principal, connection_id, response)
+        HttpOverWsMessage::HttpResponse(request_id, response) => {
+            handle_http_response(proxy_principal, request_id, response)
         }
-        HttpOverWsMessage::Error(connection_id, err) => {
+        HttpOverWsMessage::Error(request_id, err) => {
             log(&err);
 
-            if let Some(connection_id) = connection_id {
+            if let Some(request_id) = request_id {
                 STATE.with(|state| {
                     state.borrow_mut().report_connection_failure(
                         proxy_principal,
-                        connection_id,
+                        request_id,
                         HttpFailureReason::ProxyError(err.clone()),
                     );
                 });
@@ -71,19 +71,19 @@ pub fn try_disconnect_http_proxy(proxy_principal: Principal) -> Result<(), HttpF
 
 fn handle_http_response(
     proxy_principal: Principal,
-    connection_id: HttpRequestId,
+    request_id: HttpRequestId,
     response: HttpResponse,
 ) -> Result<(), HttpOverWsError> {
     STATE.with(|state| {
         state
             .borrow_mut()
-            .handle_http_response(proxy_principal, connection_id, response)
+            .handle_http_response(proxy_principal, request_id, response)
             .map_err(|e| HttpOverWsError::InvalidHttpMessage(e))
     })?;
 
     log(&format!(
         "http_over_ws: completed HTTP connection {}",
-        connection_id
+        request_id
     ));
 
     Ok(())
@@ -95,7 +95,7 @@ pub fn execute_http_request(
     timeout_ms: Option<HttpRequestTimeoutMs>,
     ws_send: fn(Principal, Vec<u8>) -> Result<(), String>,
 ) -> ExecuteHttpRequestResult {
-    let (assigned_proxy_principal, connection_id) = STATE
+    let (assigned_proxy_principal, request_id) = STATE
         .with(|state| {
             state
                 .borrow_mut()
@@ -105,17 +105,17 @@ pub fn execute_http_request(
 
     ws_send(
         assigned_proxy_principal,
-        HttpOverWsMessage::HttpRequest(connection_id, req).to_bytes(),
+        HttpOverWsMessage::HttpRequest(request_id, req).to_bytes(),
     )
     .unwrap();
 
-    Ok(connection_id)
+    Ok(request_id)
 }
 
-pub fn get_http_connection(connection_id: HttpRequestId) -> Option<HttpRequest> {
-    STATE.with(|state| state.borrow().get_http_connection(connection_id))
+pub fn get_http_connection(request_id: HttpRequestId) -> Option<HttpRequest> {
+    STATE.with(|state| state.borrow().get_http_connection(request_id))
 }
 
-pub fn get_http_response(connection_id: HttpRequestId) -> GetHttpResponseResult {
-    STATE.with(|state| state.borrow().get_http_response(connection_id))
+pub fn get_http_response(request_id: HttpRequestId) -> GetHttpResponseResult {
+    STATE.with(|state| state.borrow().get_http_response(request_id))
 }
