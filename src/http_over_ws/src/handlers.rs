@@ -66,18 +66,40 @@ fn handle_http_result(
     request_id: HttpRequestId,
     http_result: HttpResult,
 ) {
-    if let Ok(Some((callback, http_result))) = STATE.with(|state| {
+    match STATE.with(|state| {
         state
             .borrow_mut()
             .update_connection_state(proxy_principal, request_id, http_result)
     }) {
-        ic_cdk::spawn(async move { callback(request_id, http_result).await });
+        Ok(callback_with_result) => {
+            trigger_callback_with_result(request_id, callback_with_result);
+        }
+        Err(e) => {
+            log(&format!(
+                "http_over_ws: error {:?} while updating state for request with id: {}",
+                e, request_id
+            ));
+        }
     }
+}
 
-    log(&format!(
-        "http_over_ws: handled http result for request with id: {}",
-        request_id
-    ));
+pub(crate) fn trigger_callback_with_result(
+    request_id: HttpRequestId,
+    callback_with_result: Option<HttpCallbackWithResult>,
+) {
+    if let Some((callback, http_result)) = callback_with_result {
+        ic_cdk::spawn(async move { callback(request_id, http_result).await });
+
+        log(&format!(
+            "http_over_ws: triggered callback with result for request with id: {}",
+            request_id
+        ));
+    } else {
+        log(&format!(
+            "http_over_ws: request with id: {} completed without callback",
+            request_id
+        ));
+    }
 }
 
 pub fn execute_http_request(

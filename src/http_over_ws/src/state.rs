@@ -4,7 +4,7 @@ use crate::{
         GetHttpResponseResult, HttpCallback, HttpConnection, HttpFailureReason, HttpRequest,
         HttpRequestId, HttpRequestTimeoutMs,
     },
-    HttpCallbackWithResult, HttpOverWsError, HttpResult,
+    trigger_callback_with_result, HttpCallbackWithResult, HttpOverWsError, HttpResult,
 };
 use candid::Principal;
 use std::{cell::RefCell, collections::HashMap, time::Duration};
@@ -55,7 +55,8 @@ impl State {
             Some(ic_cdk_timers::set_timer(
                 Duration::from_millis(millis),
                 move || {
-                    http_connection_timeout(proxy_principal, request_id);
+                    let callback_with_result = http_connection_timeout(proxy_principal, request_id);
+                    trigger_callback_with_result(request_id, callback_with_result);
                 },
             ))
         });
@@ -137,21 +138,21 @@ impl State {
     }
 }
 
-fn http_connection_timeout(proxy_principal: Principal, request_id: HttpRequestId) {
+fn http_connection_timeout(
+    proxy_principal: Principal,
+    request_id: HttpRequestId,
+) -> Option<HttpCallbackWithResult> {
     STATE.with(|state| {
         state
             .borrow_mut()
             .connected_proxies
             .0
             .get_mut(&proxy_principal)
-            .and_then(|proxy| {
-                let r = proxy.get_connection_mut(request_id).and_then(|connection| {
-                    connection.update_state(HttpResult::Failure(HttpFailureReason::RequestTimeout));
-                    Ok(connection)
-                });
-                Some(r)
-            });
-    });
+            .and_then(|proxy| proxy.get_connection_mut(request_id).ok())
+            .and_then(|connection| {
+                connection.update_state(HttpResult::Failure(HttpFailureReason::RequestTimeout))
+            })
+    })
 }
 
 pub(crate) struct ConnectedProxies(HashMap<Principal, ClientProxy>);
