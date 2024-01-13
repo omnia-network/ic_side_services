@@ -5,6 +5,7 @@ edition = { workspace = true }
 
 [dependencies]
 candid = { workspace = true }
+ic-cdk = { workspace = true }
 ic-websocket-cdk = { workspace = true }
 serde = { workspace = true }
 pocket-ic = { workspace = true }

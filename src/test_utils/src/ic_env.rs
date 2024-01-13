@@ -6,6 +6,7 @@ use std::{
 };
 
 use candid::{decode_one, encode_args, utils::ArgumentEncoder, CandidType, Deserialize, Principal};
+use ic_cdk::api::management_canister::provisional::CanisterSettings;
 use lazy_static::lazy_static;
 use pocket_ic::{PocketIc, PocketIcBuilder, UserError, WasmResult};
 use std::fs::File;
@@ -47,9 +48,16 @@ impl TestEnv {
 
     pub fn add_canister(&mut self, data: CanisterData) -> Principal {
         let app_subnet = self.pic.topology().get_app_subnets()[0];
-        let canister_id = self
-            .pic
-            .create_canister_on_subnet(data.controller, None, app_subnet);
+        let canister_id = self.pic.create_canister_on_subnet(
+            data.controller,
+            Some(CanisterSettings {
+                controllers: data.controller.map(|c| vec![c]),
+                compute_allocation: None,
+                memory_allocation: None,
+                freezing_threshold: None,
+            }),
+            app_subnet,
+        );
         self.pic.add_cycles(canister_id, 1_000_000_000_000_000);
 
         self.pic.install_canister(
@@ -97,6 +105,8 @@ impl TestEnv {
         self.tick_n(100);
     }
 
+    /// # Panics
+    /// if the call returns a [WasmResult::Reject].
     pub fn call_canister_method<T, S>(
         &self,
         canister_id: Principal,
@@ -122,7 +132,8 @@ impl TestEnv {
     }
 
     /// # Panics
-    /// if the call returns a [WasmResult::Reject].
+    /// if [TestEnv::call_canister_method] panics
+    /// or the canister returns a [UserError].
     pub fn call_canister_method_with_panic<T, S>(
         &self,
         canister_id: Principal,
@@ -140,6 +151,33 @@ impl TestEnv {
 
     /// # Panics
     /// if the call returns a [WasmResult::Reject].
+    pub fn query_canister_method<T, S>(
+        &self,
+        canister_id: Principal,
+        caller: Principal,
+        method: &str,
+        args: T,
+    ) -> Result<S, UserError>
+    where
+        T: CandidType + ArgumentEncoder,
+        S: CandidType + for<'a> Deserialize<'a>,
+    {
+        self.pic
+            .query_call(
+                canister_id,
+                caller,
+                &method.to_string(),
+                encode_args(args).unwrap(),
+            )
+            .map(|res| match res {
+                WasmResult::Reply(bytes) => decode_one(&bytes).unwrap(),
+                _ => panic!("Expected reply"),
+            })
+    }
+
+    /// # Panics
+    /// if [TestEnv::query_canister_method] panics
+    /// or the canister returns a [UserError].
     pub fn query_canister_method_with_panic<T, S>(
         &self,
         canister_id: Principal,
@@ -151,20 +189,8 @@ impl TestEnv {
         T: CandidType + ArgumentEncoder,
         S: CandidType + for<'a> Deserialize<'a>,
     {
-        let res = self
-            .pic
-            .query_call(
-                canister_id,
-                caller,
-                &method.to_string(),
-                encode_args(args).unwrap(),
-            )
-            .expect("Failed to call canister");
-
-        match res {
-            WasmResult::Reply(bytes) => decode_one(&bytes).unwrap(),
-            _ => panic!("Expected reply"),
-        }
+        self.query_canister_method(canister_id, caller, method, args)
+            .expect("Failed to query canister")
     }
 }
 

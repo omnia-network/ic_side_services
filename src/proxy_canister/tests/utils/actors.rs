@@ -64,4 +64,9 @@ impl<'a> ProxyCanisterActor<'a> {
         self.test_env
             .call_canister_method(self.canister_id, caller, "http_request", (args,))
     }
+
+    pub fn query_get_logs(&self, caller: Principal) -> Result<Vec<(String, String)>, UserError> {
+        self.test_env
+            .query_canister_method(self.canister_id, caller, "get_logs", ())
+    }
 }

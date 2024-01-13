@@ -2271,6 +2271,7 @@ dependencies = [
  "candid",
  "http_over_ws",
  "ic-agent",
+ "ic-cdk",
  "ic-websocket-cdk",
  "lazy_static",
  "pocket-ic",

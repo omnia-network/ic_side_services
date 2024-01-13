@@ -150,7 +150,8 @@ async fn call_canister_endpoint_callback(request_id: HttpRequestId, res: HttpRes
 
 #[query]
 async fn get_logs() -> Vec<(String, String)> {
-    guard_caller_is_controller().await;
+    let caller = caller();
+    guard_caller_is_controller(&caller).await;
 
     logger::get_logs()
 }
