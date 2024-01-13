@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use candid::Principal;
-use http_over_ws::{HttpRequestId, HttpResponse};
+use http_over_ws::{HttpConnectionId, HttpResponse};
 use pocket_ic::UserError;
 use proxy_canister_types::{CanisterRequest, HttpRequestEndpointArgs, HttpRequestEndpointResult};
 use test_utils::{ic_env::TestEnv, identity::generate_random_principal};
@@ -33,7 +33,7 @@ impl<'a> TestUserCanisterActor<'a> {
         )
     }
 
-    pub fn query_get_callback_responses(&self) -> HashMap<HttpRequestId, HttpResponse> {
+    pub fn query_get_callback_responses(&self) -> HashMap<HttpConnectionId, HttpResponse> {
         self.test_env.query_canister_method_with_panic(
             self.canister_id,
             self.principal,
@@ -68,7 +68,7 @@ impl<'a> ProxyCanisterActor<'a> {
     pub fn query_get_request_by_id(
         &self,
         caller: Principal,
-        request_id: HttpRequestId,
+        request_id: HttpConnectionId,
     ) -> Result<Option<CanisterRequest>, UserError> {
         self.test_env.query_canister_method(
             self.canister_id,
@@ -81,7 +81,7 @@ impl<'a> ProxyCanisterActor<'a> {
     pub fn query_get_request_by_id_with_panic(
         &self,
         caller: Principal,
-        request_id: HttpRequestId,
+        request_id: HttpConnectionId,
     ) -> Option<CanisterRequest> {
         self.query_get_request_by_id(caller, request_id)
             .expect("query_get_request_by_id should succeed")

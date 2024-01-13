@@ -32,20 +32,19 @@ pub fn try_handle_http_over_ws_message(
             handle_http_response(proxy_principal, connection_id, response)
         }
         HttpOverWsMessage::Error(connection_id, err) => {
-            let e = format!("http_over_ws: incoming error: {}", err);
-            log(&e);
+            log(&err);
 
             if let Some(connection_id) = connection_id {
                 STATE.with(|state| {
                     state.borrow_mut().report_connection_failure(
                         proxy_principal,
                         connection_id,
-                        HttpFailureReason::ProxyError(e.clone()),
+                        HttpFailureReason::ProxyError(err.clone()),
                     );
                 });
             }
             Err(HttpOverWsError::InvalidHttpMessage(
-                HttpFailureReason::ProxyError(e),
+                HttpFailureReason::ProxyError(err),
             ))
         }
         HttpOverWsMessage::HttpRequest(_, _) => {

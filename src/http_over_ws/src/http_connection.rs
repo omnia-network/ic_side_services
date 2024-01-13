@@ -1,10 +1,10 @@
-use std::{future::Future, pin::Pin};
 use candid::{decode_one, encode_one, CandidType, Deserialize};
 use ic_cdk::api::management_canister::http_request::{
     HttpHeader as ApiHttpHeader, HttpResponse as ApiHttpResponse,
 };
 use ic_cdk_timers::TimerId;
 use logger::log;
+use std::{future::Future, pin::Pin};
 
 pub type HttpConnectionId = u64;
 
@@ -24,10 +24,10 @@ pub type HttpHeader = ApiHttpHeader;
 
 #[derive(CandidType, Clone, Debug, Deserialize, PartialEq, Eq)]
 pub struct HttpRequest {
-    url: String,
-    method: HttpMethod,
-    headers: Vec<HttpHeader>,
-    body: Option<Vec<u8>>,
+    pub url: String,
+    pub method: HttpMethod,
+    pub headers: Vec<HttpHeader>,
+    pub body: Option<Vec<u8>>,
 }
 
 impl HttpRequest {
@@ -47,7 +47,8 @@ impl HttpRequest {
 }
 
 pub type HttpResponse = ApiHttpResponse;
-pub(crate) type HttpCallback = fn(HttpResponse) -> Pin<Box<dyn Future<Output = ()>>>;
+pub(crate) type HttpCallback =
+    fn(HttpConnectionId, HttpResponse) -> Pin<Box<dyn Future<Output = ()>>>;
 
 pub type HttpRequestTimeoutMs = u64;
 
@@ -127,21 +128,19 @@ impl HttpConnection {
                 if let Some(timer_id) = timer_id.take() {
                     ic_cdk_timers::clear_timer(timer_id);
                 }
-        
+
                 // if a callback was set, execute it
                 if let Some(callback) = callback.take() {
-                    ic_cdk::spawn(
-                        {
-                            let response = response.clone();
-                            async move { callback(response).await }
-                        });
+                    ic_cdk::spawn({
+                        let response = response.clone();
+                        let id = self.id;
+                        async move { callback(id, response).await }
+                    });
                 }
                 self.state = HttpConnectionState::Success(response);
                 Ok(())
-            },
-            HttpConnectionState::Failed(e) => {
-                Err(e.to_owned())
             }
+            HttpConnectionState::Failed(e) => Err(e.to_owned()),
             HttpConnectionState::Success(_) => {
                 // a second response is ignored
                 Ok(())
@@ -179,12 +178,11 @@ impl HttpConnection {
             HttpConnectionState::WaitingForResponse(_) => {
                 log(&format!(
                     "http_over_ws: HTTP connection with id {} failed with reason {:?}",
-                    self.id,
-                    reason
+                    self.id, reason
                 ));
 
                 self.state = HttpConnectionState::Failed(reason);
-            },
+            }
             HttpConnectionState::Failed(_) => {
                 log(&format!(
                     "http_over_ws: HTTP connection with id {} failed after it had already failed",
