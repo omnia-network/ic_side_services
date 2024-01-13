@@ -29,7 +29,7 @@ impl ClientProxy {
     ) -> Result<&mut HttpConnection, HttpOverWsError> {
         self.connections
             .get_mut(&request_id)
-            .ok_or(HttpOverWsError::ConnectionNotFound)
+            .ok_or(HttpOverWsError::RequestIdNotFound)
     }
 
     pub(crate) fn get_connections(&self) -> &BTreeMap<HttpRequestId, HttpConnection> {

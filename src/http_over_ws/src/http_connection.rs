@@ -9,7 +9,7 @@ use std::{future::Future, pin::Pin};
 pub type HttpRequestId = u64;
 
 pub type ExecuteHttpRequestResult = Result<HttpRequestId, HttpOverWsError>;
-pub type GetHttpResponseResult = Result<HttpResponse, HttpFailureReason>;
+pub type GetHttpResponseResult = Result<HttpResponse, HttpOverWsError>;
 
 #[derive(CandidType, Clone, Debug, Deserialize, PartialEq, Eq)]
 pub enum HttpMethod {
@@ -83,19 +83,17 @@ pub enum HttpOverWsError {
     /// The message is an HttpOverWsMessage, however it is not what it is expected to be.
     InvalidHttpMessage,
     ProxyNotFound,
-    ConnectionNotFound,
+    RequestIdNotFound,
+    NotYetReceived,
     NoProxiesConnected,
     ConnectionNotAssignedToProxy,
+    RequestFailed(HttpFailureReason),
 }
 
 #[derive(CandidType, Clone, Debug, Deserialize, PartialEq, Eq)]
 pub enum HttpFailureReason {
     RequestTimeout,
     ProxyError(String),
-    /// Used when retrieving the request from the state
-    /// and the request is not found.
-    RequestIdNotFound,
-    NotYetReceived,
 }
 
 pub(crate) struct HttpConnection {
@@ -124,8 +122,10 @@ impl HttpConnection {
 
     pub(crate) fn get_response(&self) -> GetHttpResponseResult {
         match self.state {
-            HttpConnectionState::WaitingForResponse(_) => Err(HttpFailureReason::NotYetReceived),
-            HttpConnectionState::Failed(ref reason) => Err(reason.clone()),
+            HttpConnectionState::WaitingForResponse(_) => Err(HttpOverWsError::NotYetReceived),
+            HttpConnectionState::Failed(ref reason) => {
+                Err(HttpOverWsError::RequestFailed(reason.clone()))
+            }
             HttpConnectionState::Success(ref response) => Ok(response.clone()),
         }
     }

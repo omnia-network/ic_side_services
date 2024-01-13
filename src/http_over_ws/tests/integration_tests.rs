@@ -113,7 +113,7 @@ fn test_execute_http_request_without_response() {
     proxy_client.expect_received_http_requests_count(1);
 
     let http_response = canister_actor.query_get_http_response(request_id);
-    assert_eq!(http_response, Err(HttpFailureReason::NotYetReceived));
+    assert_eq!(http_response, Err(HttpOverWsError::NotYetReceived));
 }
 
 #[test]
@@ -224,7 +224,12 @@ fn test_execute_http_request_with_proxy_error() {
     ));
 
     let res = canister_actor.query_get_http_response(request_id);
-    assert_eq!(res, Err(HttpFailureReason::ProxyError(error_message)));
+    assert_eq!(
+        res,
+        Err(HttpOverWsError::RequestFailed(
+            HttpFailureReason::ProxyError(error_message)
+        ))
+    );
 }
 
 #[test]
@@ -274,7 +279,7 @@ fn test_execute_http_request_only_assigned_proxy() {
         http_response.clone(),
     ));
     let res = canister_actor.query_get_http_response(request_id);
-    assert_eq!(res, Err(HttpFailureReason::NotYetReceived));
+    assert_eq!(res, Err(HttpOverWsError::NotYetReceived));
 
     assigned_proxy.send_http_over_ws_message(HttpOverWsMessage::HttpResponse(
         request_id,
@@ -418,7 +423,12 @@ fn test_execute_http_request_timeout_expired() {
     test_env.advance_canister_time_ms(10_000);
 
     let res = canister_actor.query_get_http_response(request_id);
-    assert_eq!(res, Err(HttpFailureReason::RequestTimeout));
+    assert_eq!(
+        res,
+        Err(HttpOverWsError::RequestFailed(
+            HttpFailureReason::RequestTimeout
+        ))
+    );
 
     // even after sending the response,
     // the request shouldn't change its state
@@ -433,7 +443,12 @@ fn test_execute_http_request_timeout_expired() {
     ));
 
     let res = canister_actor.query_get_http_response(request_id);
-    assert_eq!(res, Err(HttpFailureReason::RequestTimeout));
+    assert_eq!(
+        res,
+        Err(HttpOverWsError::RequestFailed(
+            HttpFailureReason::RequestTimeout
+        ))
+    );
 }
 
 #[test]
@@ -543,5 +558,5 @@ fn test_get_http_response_not_found() {
     let canister_actor = CanisterActor::new(&test_env);
 
     let res = canister_actor.query_get_http_response(0);
-    assert_eq!(res, Err(HttpFailureReason::RequestIdNotFound));
+    assert_eq!(res, Err(HttpOverWsError::RequestIdNotFound));
 }

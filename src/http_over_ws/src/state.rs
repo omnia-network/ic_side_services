@@ -34,7 +34,7 @@ impl State {
     pub(crate) fn remove_proxy(
         &mut self,
         proxy_principal: &Principal,
-    ) -> Result<(), HttpFailureReason> {
+    ) -> Result<(), HttpOverWsError> {
         self.connected_proxies.remove_proxy(proxy_principal)
     }
 
@@ -133,7 +133,7 @@ impl State {
                 }
             }
         }
-        Err(HttpFailureReason::RequestIdNotFound)
+        Err(HttpOverWsError::RequestIdNotFound)
     }
 }
 
@@ -195,12 +195,10 @@ impl ConnectedProxies {
         Ok(())
     }
 
-    fn remove_proxy(&mut self, proxy_principal: &Principal) -> Result<(), HttpFailureReason> {
+    fn remove_proxy(&mut self, proxy_principal: &Principal) -> Result<(), HttpOverWsError> {
         self.0
             .remove(proxy_principal)
-            .ok_or(HttpFailureReason::ProxyError(String::from(
-                "proxy not connected",
-            )))?;
+            .ok_or(HttpOverWsError::ProxyNotFound)?;
         Ok(())
     }
 }

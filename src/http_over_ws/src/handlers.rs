@@ -51,7 +51,7 @@ pub fn try_handle_http_over_ws_message(
     Ok(())
 }
 
-pub fn try_disconnect_http_proxy(proxy_principal: Principal) -> Result<(), HttpFailureReason> {
+pub fn try_disconnect_http_proxy(proxy_principal: Principal) -> Result<(), HttpOverWsError> {
     STATE.with(|state| state.borrow_mut().remove_proxy(&proxy_principal))?;
 
     log(&format!(
