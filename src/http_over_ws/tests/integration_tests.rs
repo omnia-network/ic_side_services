@@ -5,6 +5,7 @@ use std::{path::PathBuf, sync::Once};
 use candid::{Nat, Principal};
 use http_over_ws::{
     HttpFailureReason, HttpMethod, HttpOverWsError, HttpOverWsMessage, HttpRequest, HttpResponse,
+    HttpResult,
 };
 use lazy_static::lazy_static;
 use test_utils::{
@@ -150,9 +151,9 @@ fn test_execute_http_request() {
     ));
 
     let res = canister_actor.query_get_http_response(request_id);
-    assert_eq!(res, Ok(http_response));
+    assert_eq!(res, Ok(HttpResult::Success(http_response)));
 
-    let callback_res = canister_actor.query_get_callback_responses();
+    let callback_res = canister_actor.query_get_callback_results();
     assert_eq!(callback_res.len(), 0);
 }
 
@@ -190,7 +191,7 @@ fn test_execute_http_request_with_body() {
     ));
 
     let res = canister_actor.query_get_http_response(request_id);
-    assert_eq!(res, Ok(http_response));
+    assert_eq!(res, Ok(HttpResult::Success(http_response)));
 }
 
 #[test]
@@ -287,7 +288,7 @@ fn test_execute_http_request_only_assigned_proxy() {
     ));
 
     let res = canister_actor.query_get_http_response(request_id);
-    assert_eq!(res, Ok(http_response));
+    assert_eq!(res, Ok(HttpResult::Success(http_response)));
 }
 
 #[test]
@@ -351,9 +352,9 @@ fn test_execute_http_request_multiple() {
     ));
 
     let res1 = canister_actor.query_get_http_response(request_id1);
-    assert_eq!(res1, Ok(http_response1));
+    assert_eq!(res1, Ok(HttpResult::Success(http_response1)));
     let res2 = canister_actor.query_get_http_response(request_id2);
-    assert_eq!(res2, Ok(http_response2));
+    assert_eq!(res2, Ok(HttpResult::Success(http_response2)));
 }
 
 #[test]
@@ -393,7 +394,7 @@ fn test_execute_http_request_before_timeout() {
     ));
 
     let res = canister_actor.query_get_http_response(request_id);
-    assert_eq!(res, Ok(http_response));
+    assert_eq!(res, Ok(HttpResult::Success(http_response)));
 }
 
 #[test]
@@ -485,11 +486,11 @@ fn test_execute_http_request_with_callback() {
     ));
 
     let res = canister_actor.query_get_http_response(request_id);
-    assert_eq!(res, Ok(http_response.clone()));
+    assert_eq!(res, Ok(HttpResult::Success(http_response.clone())));
 
-    let callback_res = canister_actor.query_get_callback_responses();
+    let callback_res = canister_actor.query_get_callback_results();
     assert_eq!(callback_res.len(), 1);
-    assert_eq!(callback_res[0], http_response);
+    assert_eq!(callback_res[0], HttpResult::Success(http_response));
 }
 
 #[test]
@@ -526,10 +527,10 @@ fn test_execute_http_request_duplicate_response() {
     ));
 
     let res = canister_actor.query_get_http_response(request_id);
-    assert_eq!(res, Ok(http_response1.clone()));
-    let callback_res = canister_actor.query_get_callback_responses();
+    assert_eq!(res, Ok(HttpResult::Success(http_response1.clone())));
+    let callback_res = canister_actor.query_get_callback_results();
     assert_eq!(callback_res.len(), 1);
-    assert_eq!(callback_res[0], http_response1);
+    assert_eq!(callback_res[0], HttpResult::Success(http_response1.clone()));
 
     // sending another response again should not change the state
     // and hence not invoke the callback again
@@ -544,10 +545,10 @@ fn test_execute_http_request_duplicate_response() {
     ));
 
     let res = canister_actor.query_get_http_response(request_id);
-    assert_eq!(res, Ok(http_response1.clone()));
-    let callback_res = canister_actor.query_get_callback_responses();
+    assert_eq!(res, Ok(HttpResult::Success(http_response1.clone())));
+    let callback_res = canister_actor.query_get_callback_results();
     assert_eq!(callback_res.len(), 1);
-    assert_eq!(callback_res[0], http_response1);
+    assert_eq!(callback_res[0], HttpResult::Success(http_response1));
 }
 
 #[test]

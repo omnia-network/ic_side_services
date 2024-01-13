@@ -9,7 +9,7 @@ use std::{future::Future, pin::Pin};
 pub type HttpRequestId = u64;
 
 pub type ExecuteHttpRequestResult = Result<HttpRequestId, HttpOverWsError>;
-pub type GetHttpResponseResult = Result<HttpResponse, HttpOverWsError>;
+pub type GetHttpResponseResult = Result<HttpResult, HttpOverWsError>;
 
 #[derive(CandidType, Clone, Debug, Deserialize, PartialEq, Eq)]
 pub enum HttpMethod {
@@ -48,12 +48,14 @@ impl HttpRequest {
 
 pub type HttpResponse = ApiHttpResponse;
 
+#[derive(CandidType, Clone, Debug, Deserialize, PartialEq, Eq)]
 pub enum HttpResult {
     Success(HttpResponse),
     Failure(HttpFailureReason),
 }
 
-pub(crate) type HttpCallback = fn(HttpRequestId, HttpResponse) -> Pin<Box<dyn Future<Output = ()>>>;
+pub(crate) type HttpCallbackWithResult = (HttpCallback, HttpResult);
+pub(crate) type HttpCallback = fn(HttpRequestId, HttpResult) -> Pin<Box<dyn Future<Output = ()>>>;
 
 pub type HttpRequestTimeoutMs = u64;
 
@@ -126,11 +128,14 @@ impl HttpConnection {
             HttpConnectionState::Failed(ref reason) => {
                 Err(HttpOverWsError::RequestFailed(reason.clone()))
             }
-            HttpConnectionState::Success(ref response) => Ok(response.clone()),
+            HttpConnectionState::Success(ref response) => Ok(HttpResult::Success(response.clone())),
         }
     }
 
-    pub(crate) fn update_state(&mut self, http_result: HttpResult) {
+    pub(crate) fn update_state(
+        &mut self,
+        http_result: HttpResult,
+    ) -> Option<HttpCallbackWithResult> {
         match &mut self.state {
             HttpConnectionState::WaitingForResponse((timer_id, callback)) => {
                 match http_result {
@@ -140,19 +145,19 @@ impl HttpConnection {
                             ic_cdk_timers::clear_timer(timer_id);
                         }
 
-                        // if a callback was set, execute it
-                        if let Some(callback) = callback.take() {
-                            ic_cdk::spawn({
-                                let response = response.clone();
-                                let id = self.id;
-                                async move { callback(id, response).await }
-                            });
-                        }
-                        self.state = HttpConnectionState::Success(response);
                         log(&format!(
                             "http_over_ws: HTTP connection with id {} received response",
                             self.id
                         ));
+
+                        let mut res = None;
+                        if let Some(callback) = callback.take() {
+                            res = Some((callback, HttpResult::Success(response.clone())));
+                        }
+
+                        self.state = HttpConnectionState::Success(response);
+
+                        return res;
                     }
                     HttpResult::Failure(reason) => {
                         log(&format!(
@@ -160,7 +165,14 @@ impl HttpConnection {
                             self.id, reason
                         ));
 
-                        self.state = HttpConnectionState::Failed(reason.clone());
+                        let mut res = None;
+                        if let Some(callback) = callback.take() {
+                            res = Some((callback, HttpResult::Failure(reason.clone())));
+                        }
+
+                        self.state = HttpConnectionState::Failed(reason);
+
+                        return res;
                     }
                 }
             }
@@ -177,6 +189,7 @@ impl HttpConnection {
                 ));
             }
         }
+        None
     }
 }
 

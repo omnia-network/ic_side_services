@@ -4,7 +4,7 @@ mod state;
 mod utils;
 mod ws;
 
-use http_over_ws::{execute_http_request, HttpRequestId, HttpResponse};
+use http_over_ws::{execute_http_request, HttpRequestId, HttpResult};
 use ic_cdk::caller;
 use ic_cdk_macros::*;
 use logger::log;
@@ -75,7 +75,7 @@ fn http_request(args: HttpRequestEndpointArgs) -> HttpRequestEndpointResult {
     Ok(request_id)
 }
 
-async fn http_request_callback(request_id: HttpRequestId, res: HttpResponse) {
+async fn http_request_callback(request_id: HttpRequestId, res: HttpResult) {
     let request_state = STATE.with(|state| state.borrow().get_request_state(request_id));
 
     if let Some(r) = request_state {

@@ -51,6 +51,6 @@ fn http_response_callback_wrong_args(s: String) {
 }
 
 #[query]
-fn get_callback_responses() -> HashMap<HttpRequestId, HttpResponse> {
+fn get_callback_results() -> HashMap<HttpRequestId, HttpResponse> {
     CALLBACK_RESPONSES.with(|responses| responses.borrow().clone())
 }

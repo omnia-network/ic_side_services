@@ -356,7 +356,7 @@ fn test_http_request() {
     assert!(matches!(req_state.state, RequestState::Successful));
 
     // check that no callback was called
-    let cb_responses = test_canister_actor.query_get_callback_responses();
+    let cb_responses = test_canister_actor.query_get_callback_results();
     assert_eq!(cb_responses.len(), 0);
 }
 
@@ -444,7 +444,7 @@ fn test_http_request_with_callback() {
     assert!(matches!(req_state.state, RequestState::Successful));
 
     // check that the callback was called
-    let cb_responses = test_canister_actor.query_get_callback_responses();
+    let cb_responses = test_canister_actor.query_get_callback_results();
     assert_eq!(cb_responses.get(&request_id).unwrap(), &response);
 }
 
