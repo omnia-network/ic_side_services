@@ -199,14 +199,13 @@ fn test_http_request_invalid() {
     proxy_client.expect_received_http_requests_count(0);
 }
 
-fn test_wrong_callback(callback_name: &str) {
-    let test_env = get_test_env();
-    let mut proxy_client = ProxyClient::new(&test_env, get_proxy_canister_id());
+fn test_wrong_callback(
+    callback_name: &str,
+    proxy_client: &mut ProxyClient,
+    test_canister_actor: &TestUserCanisterActor,
+    proxy_canister_actor: &ProxyCanisterActor,
+) {
     let test_canister_id = get_test_user_canister_id();
-    let test_canister_actor = TestUserCanisterActor::new(&test_env, test_canister_id);
-    let proxy_canister_actor = ProxyCanisterActor::new(&test_env, get_proxy_canister_id());
-
-    proxy_client.setup_proxy();
 
     println!("testing callback: {}", callback_name);
 
@@ -234,8 +233,6 @@ fn test_wrong_callback(callback_name: &str) {
         },
     ));
 
-    test_env.tick_n(10);
-
     let req_state1 = proxy_canister_actor
         .query_get_request_by_id_with_panic(*PROXY_CANISTER_CONTROLLER, request_id1)
         .unwrap();
@@ -257,8 +254,6 @@ fn test_wrong_callback(callback_name: &str) {
             callback_method_name: Some(callback_name.to_string()),
         })
         .unwrap();
-
-    test_env.tick_n(10);
 
     // we expect to receive the new request
     let proxy_messages = proxy_client.get_http_over_ws_messages();
@@ -287,10 +282,31 @@ fn test_wrong_callback(callback_name: &str) {
 fn test_http_request_wrong_callbacks() {
     setup();
     reset_canisters();
+    let test_env = get_test_env();
+    let mut proxy_client = ProxyClient::new(&test_env, get_proxy_canister_id());
+    let test_canister_actor = TestUserCanisterActor::new(&test_env, get_test_user_canister_id());
+    let proxy_canister_actor = ProxyCanisterActor::new(&test_env, get_proxy_canister_id());
 
-    test_wrong_callback("wrong_callback_method");
-    test_wrong_callback("http_response_callback_traps");
-    test_wrong_callback("http_response_callback_wrong_args");
+    proxy_client.setup_proxy();
+
+    test_wrong_callback(
+        "wrong_callback_method",
+        &mut proxy_client,
+        &test_canister_actor,
+        &proxy_canister_actor,
+    );
+    test_wrong_callback(
+        "http_response_callback_traps",
+        &mut proxy_client,
+        &test_canister_actor,
+        &proxy_canister_actor,
+    );
+    test_wrong_callback(
+        "http_response_callback_wrong_args",
+        &mut proxy_client,
+        &test_canister_actor,
+        &proxy_canister_actor,
+    );
 }
 
 #[test]
