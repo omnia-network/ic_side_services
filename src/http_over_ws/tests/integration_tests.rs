@@ -553,5 +553,5 @@ fn test_get_http_response_not_found() {
     let canister_actor = CanisterActor::new(&test_env);
 
     let res = canister_actor.query_get_http_response(0);
-    assert_eq!(res, Err(HttpFailureReason::ConnectionIdNotFound));
+    assert_eq!(res, Err(HttpFailureReason::RequestIdNotFound));
 }

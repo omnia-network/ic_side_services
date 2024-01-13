@@ -4,7 +4,7 @@ mod state;
 mod utils;
 mod ws;
 
-use http_over_ws::{execute_http_request, HttpConnectionId, HttpResponse};
+use http_over_ws::{execute_http_request, HttpRequestId, HttpResponse};
 use ic_cdk::caller;
 use ic_cdk_macros::*;
 use logger::log;
@@ -79,11 +79,11 @@ fn http_request(args: HttpRequestEndpointArgs) -> HttpRequestEndpointResult {
     Ok(request_id)
 }
 
-fn cb(id: HttpConnectionId, res: HttpResponse) -> Pin<Box<dyn Future<Output = ()>>> {
+fn cb(id: HttpRequestId, res: HttpResponse) -> Pin<Box<dyn Future<Output = ()>>> {
     Box::pin(call_canister_endpoint_callback(id, res))
 }
 
-async fn call_canister_endpoint_callback(request_id: HttpConnectionId, res: HttpResponse) {
+async fn call_canister_endpoint_callback(request_id: HttpRequestId, res: HttpResponse) {
     let request_state = STATE.with(|state| state.borrow().get_request_state(request_id));
 
     if let Some(r) = request_state {
@@ -137,7 +137,7 @@ async fn call_canister_endpoint_callback(request_id: HttpConnectionId, res: Http
 }
 
 #[query]
-async fn get_request_by_id(request_id: HttpConnectionId) -> Option<CanisterRequest> {
+async fn get_request_by_id(request_id: HttpRequestId) -> Option<CanisterRequest> {
     let caller = caller();
     guard_caller_is_controller(&caller).await;
 

@@ -1,6 +1,6 @@
 use std::{collections::HashMap, time::Duration, cell::RefCell};
 use candid::Principal;
-use crate::{http_connection::{HttpFailureReason, HttpConnectionId, HttpCallback, HttpRequest, HttpRequestTimeoutMs, HttpResponse, GetHttpResponseResult, HttpConnection}, client_proxy::ClientProxy};
+use crate::{http_connection::{HttpFailureReason, HttpRequestId, HttpCallback, HttpRequest, HttpRequestTimeoutMs, HttpResponse, GetHttpResponseResult, HttpConnection}, client_proxy::ClientProxy};
 
 // local state
 thread_local! {
@@ -9,7 +9,7 @@ thread_local! {
 
 pub(crate) struct State {
     connected_proxies: ConnectedProxies,
-    next_connection_id: HttpConnectionId,
+    next_connection_id: HttpRequestId,
 }
 
 impl State {
@@ -34,7 +34,7 @@ impl State {
         request: HttpRequest,
         callback: Option<HttpCallback>,
         timeout_ms: Option<HttpRequestTimeoutMs>,
-    ) -> Result<(Principal, HttpConnectionId), HttpFailureReason> {
+    ) -> Result<(Principal, HttpRequestId), HttpFailureReason> {
         let connection_id = self.next_connection_id();
 
         let proxy_principal = self
@@ -64,12 +64,12 @@ impl State {
         Ok((proxy_principal, connection_id))
     }
 
-    fn next_connection_id(&mut self) -> HttpConnectionId {
+    fn next_connection_id(&mut self) -> HttpRequestId {
         self.next_connection_id += 1;
         self.next_connection_id
     } 
 
-    fn get_proxy_for_connection(&self, connection_id: HttpConnectionId) -> Option<Principal> {
+    fn get_proxy_for_connection(&self, connection_id: HttpRequestId) -> Option<Principal> {
         let connected_proxies_count = self.connected_proxies.0.len();
         if connected_proxies_count == 0 {
             return None;
@@ -90,7 +90,7 @@ impl State {
         )
     }
 
-    pub(crate) fn report_connection_failure(&mut self, proxy_principal: Principal, connection_id: HttpConnectionId, reason: HttpFailureReason) {
+    pub(crate) fn report_connection_failure(&mut self, proxy_principal: Principal, connection_id: HttpRequestId, reason: HttpFailureReason) {
         self.connected_proxies
             .0
             .get_mut(&proxy_principal)
@@ -100,7 +100,7 @@ impl State {
             });
     }
 
-    pub(crate) fn handle_http_response(&mut self, proxy_principal: Principal, connection_id: HttpConnectionId, response: HttpResponse) -> Result<(), HttpFailureReason> {
+    pub(crate) fn handle_http_response(&mut self, proxy_principal: Principal, connection_id: HttpRequestId, response: HttpResponse) -> Result<(), HttpFailureReason> {
         let proxy = self.connected_proxies
             .0
             .get_mut(&proxy_principal)
@@ -112,7 +112,7 @@ impl State {
         connection.update_state(response)
     }
 
-    pub(crate) fn get_http_connection(&self, connection_id: HttpConnectionId) -> Option<HttpRequest> {
+    pub(crate) fn get_http_connection(&self, connection_id: HttpRequestId) -> Option<HttpRequest> {
         for (_, proxy) in
             self
                 .connected_proxies
@@ -128,7 +128,7 @@ impl State {
         None
     }
 
-    pub(crate) fn get_http_response(&self, connection_id: HttpConnectionId) -> GetHttpResponseResult {
+    pub(crate) fn get_http_response(&self, connection_id: HttpRequestId) -> GetHttpResponseResult {
         for (_, proxy) in
             self
                 .connected_proxies
@@ -141,12 +141,12 @@ impl State {
                 }
             }
         }
-        Err(HttpFailureReason::ConnectionIdNotFound)
+        Err(HttpFailureReason::RequestIdNotFound)
     }
 }
 
 
-fn http_connection_timeout(proxy_principal: Principal, connection_id: HttpConnectionId) {
+fn http_connection_timeout(proxy_principal: Principal, connection_id: HttpRequestId) {
     STATE.with(|state| {
         state.borrow_mut()
             .connected_proxies
@@ -176,7 +176,7 @@ impl ConnectedProxies {
     fn assign_connection_to_proxy(
         &mut self,
         proxy_principal: &Principal,
-        connection_id: HttpConnectionId,
+        connection_id: HttpRequestId,
         connection: HttpConnection,
     ) -> Result<(), HttpFailureReason> {
         let proxy = self.0
@@ -194,7 +194,7 @@ impl ConnectedProxies {
     fn complete_connection_for_proxy(
         &mut self,
         proxy_principal: &Principal,
-        connection_id: HttpConnectionId,
+        connection_id: HttpRequestId,
     ) -> Result<(), HttpFailureReason> {
         let proxy = self
             .0

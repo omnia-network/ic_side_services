@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
 use http_over_ws::{
-    ExecuteHttpRequestResult, GetHttpResponseResult, HttpOverWsError, HttpRequest, HttpConnectionId,
+    ExecuteHttpRequestResult, GetHttpResponseResult, HttpOverWsError, HttpRequest, HttpRequestId,
     HttpRequestTimeoutMs, HttpResponse,
 };
 use ic_cdk_macros::{query, update};
@@ -60,7 +60,7 @@ async fn callback(response: HttpResponse) {
 }
 
 #[query]
-fn get_http_response(id: HttpConnectionId) -> GetHttpResponseResult {
+fn get_http_response(id: HttpRequestId) -> GetHttpResponseResult {
     http_over_ws::get_http_response(id)
 }
 
