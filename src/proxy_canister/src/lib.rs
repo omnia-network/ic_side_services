@@ -12,7 +12,7 @@ use proxy_canister_types::{
     CanisterRequest, HttpRequestEndpointArgs, HttpRequestEndpointResult, ProxyError, RequestState,
 };
 use requests::validate_incoming_request;
-use std::{cell::RefCell, future::Future, pin::Pin};
+use std::cell::RefCell;
 
 use crate::{
     state::ProxyState,
@@ -48,11 +48,7 @@ fn http_request(args: HttpRequestEndpointArgs) -> HttpRequestEndpointResult {
 
     let request_id = execute_http_request(
         args.request,
-        // using .map() doesn't work because it becomes a closure
-        match args.callback_method_name {
-            Some(_) => Some(cb),
-            None => None,
-        },
+        Some(|id, res| Box::pin(http_request_callback(id, res))),
         args.timeout_ms,
         ws::send,
     )
@@ -79,11 +75,7 @@ fn http_request(args: HttpRequestEndpointArgs) -> HttpRequestEndpointResult {
     Ok(request_id)
 }
 
-fn cb(id: HttpRequestId, res: HttpResponse) -> Pin<Box<dyn Future<Output = ()>>> {
-    Box::pin(call_canister_endpoint_callback(id, res))
-}
-
-async fn call_canister_endpoint_callback(request_id: HttpRequestId, res: HttpResponse) {
+async fn http_request_callback(request_id: HttpRequestId, res: HttpResponse) {
     let request_state = STATE.with(|state| state.borrow().get_request_state(request_id));
 
     if let Some(r) = request_state {
@@ -93,46 +85,67 @@ async fn call_canister_endpoint_callback(request_id: HttpRequestId, res: HttpRes
             r.canister_id
         );
 
-        if let RequestState::Executing(Some(method_name)) = r.state {
-            log!(
-                "[http_request]: request_id:{}, canister_id:{}, callback method:{}, starting inter-canister call",
-                request_id,
-                r.canister_id,
-                method_name
-            );
+        match r.state {
+            RequestState::Executing(method_name) => {
+                let cb_res = if let Some(method_name) = method_name {
+                    log!(
+                        "[http_request]: request_id:{}, canister_id:{}, callback method:{}, starting inter-canister call",
+                        request_id,
+                        r.canister_id,
+                        method_name
+                    );
 
-            let canister_res: Result<(), _> =
-                ic_cdk::call(r.canister_id, method_name.as_str(), (request_id, res)).await;
+                    let canister_res: Result<(), _> =
+                        ic_cdk::call(r.canister_id, method_name.as_str(), (request_id, res)).await;
 
-            log!(
-                "[http_request]: request_id:{}, canister_id:{}, callback method:{}, completed inter-canister call result: {:?}",
-                request_id,
-                r.canister_id,
-                method_name,
-                canister_res
-            );
+                    log!(
+                        "[http_request]: request_id:{}, canister_id:{}, callback method:{}, completed inter-canister call result: {:?}",
+                        request_id,
+                        r.canister_id,
+                        method_name,
+                        canister_res
+                    );
 
-            STATE.with(|state| {
-                let mut state = state.borrow_mut();
+                    canister_res
+                } else {
+                    log!(
+                        "[http_request]: request_id:{}, canister_id:{}, no callback method found",
+                        request_id,
+                        r.canister_id,
+                    );
 
-                match canister_res {
-                    Ok(_) => {
-                        state.set_request_successful(request_id);
-                    }
-                    Err(e) => {
-                        state.set_request_failed(request_id, format!("{:?}", e));
-                    }
+                    Ok(())
                 };
-            });
 
-            log!(
-                "[http_request]: request_id:{}, canister_id:{}, completed",
-                request_id,
-                r.canister_id
-            );
+                STATE.with(|state| {
+                    let mut state = state.borrow_mut();
+
+                    match cb_res {
+                        Ok(_) => {
+                            state.set_request_successful(request_id);
+                        }
+                        Err(e) => {
+                            state.set_request_failed(request_id, format!("{:?}", e));
+                        }
+                    };
+                });
+
+                log!(
+                    "[http_request]: request_id:{}, canister_id:{}, completed",
+                    request_id,
+                    r.canister_id,
+                );
+            }
+            _ => {
+                log!(
+                    "[http_request]: request_id:{}, canister_id:{}, already completed",
+                    request_id,
+                    r.canister_id,
+                );
+            }
         }
     } else {
-        log!("[http_request]: request {} not found", request_id);
+        log!("[http_request]: request_id:{} not found", request_id);
     }
 }
 

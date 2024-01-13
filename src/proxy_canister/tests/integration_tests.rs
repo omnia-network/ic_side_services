@@ -35,6 +35,18 @@ lazy_static! {
     static ref PROXY_CANISTER_CONTROLLER: Principal = generate_random_principal();
 }
 
+fn get_test_user_canister_id() -> Principal {
+    TEST_USER_CANISTER_ID.lock().unwrap().clone()
+}
+
+fn get_proxy_canister_id() -> Principal {
+    PROXY_CANISTER_ID.lock().unwrap().clone()
+}
+
+fn get_proxy_canister_controller() -> Principal {
+    *PROXY_CANISTER_CONTROLLER
+}
+
 static INIT: Once = Once::new();
 
 fn setup() {
@@ -44,7 +56,7 @@ fn setup() {
         let proxy_canister_id = test_env.add_canister(CanisterData {
             wasm_module: PROXY_CANISTER_WASM_MODULE.clone(),
             args: encode_args(()).unwrap(),
-            controller: Some(*PROXY_CANISTER_CONTROLLER),
+            controller: Some(get_proxy_canister_controller()),
         });
 
         let mut m = PROXY_CANISTER_ID.lock().unwrap();
@@ -69,14 +81,6 @@ fn reset_canisters() {
         .for_each(|canister_id| {
             test_env.reset_canister(&canister_id);
         });
-}
-
-fn get_test_user_canister_id() -> Principal {
-    TEST_USER_CANISTER_ID.lock().unwrap().clone()
-}
-
-fn get_proxy_canister_id() -> Principal {
-    PROXY_CANISTER_ID.lock().unwrap().clone()
 }
 
 #[test]
@@ -199,14 +203,13 @@ fn test_http_request_invalid() {
     proxy_client.expect_received_http_requests_count(0);
 }
 
-fn test_wrong_callback(callback_name: &str) {
-    let test_env = get_test_env();
-    let mut proxy_client = ProxyClient::new(&test_env, get_proxy_canister_id());
+fn test_wrong_callback(
+    callback_name: &str,
+    proxy_client: &mut ProxyClient,
+    test_canister_actor: &TestUserCanisterActor,
+    proxy_canister_actor: &ProxyCanisterActor,
+) {
     let test_canister_id = get_test_user_canister_id();
-    let test_canister_actor = TestUserCanisterActor::new(&test_env, test_canister_id);
-    let proxy_canister_actor = ProxyCanisterActor::new(&test_env, get_proxy_canister_id());
-
-    proxy_client.setup_proxy();
 
     println!("testing callback: {}", callback_name);
 
@@ -234,10 +237,8 @@ fn test_wrong_callback(callback_name: &str) {
         },
     ));
 
-    test_env.tick_n(10);
-
     let req_state1 = proxy_canister_actor
-        .query_get_request_by_id_with_panic(*PROXY_CANISTER_CONTROLLER, request_id1)
+        .query_get_request_by_id_with_panic(get_proxy_canister_controller(), request_id1)
         .unwrap();
     assert_eq!(req_state1.canister_id, test_canister_id);
     assert!(matches!(req_state1.state, RequestState::Failed(_)));
@@ -258,8 +259,6 @@ fn test_wrong_callback(callback_name: &str) {
         })
         .unwrap();
 
-    test_env.tick_n(10);
-
     // we expect to receive the new request
     let proxy_messages = proxy_client.get_http_over_ws_messages();
     assert_eq!(
@@ -277,7 +276,7 @@ fn test_wrong_callback(callback_name: &str) {
     ));
 
     let req_state2 = proxy_canister_actor
-        .query_get_request_by_id_with_panic(*PROXY_CANISTER_CONTROLLER, request_id2)
+        .query_get_request_by_id_with_panic(get_proxy_canister_controller(), request_id2)
         .unwrap();
     assert_eq!(req_state2.canister_id, test_canister_id);
     assert!(matches!(req_state2.state, RequestState::Failed(_)));
@@ -287,10 +286,31 @@ fn test_wrong_callback(callback_name: &str) {
 fn test_http_request_wrong_callbacks() {
     setup();
     reset_canisters();
+    let test_env = get_test_env();
+    let mut proxy_client = ProxyClient::new(&test_env, get_proxy_canister_id());
+    let test_canister_actor = TestUserCanisterActor::new(&test_env, get_test_user_canister_id());
+    let proxy_canister_actor = ProxyCanisterActor::new(&test_env, get_proxy_canister_id());
 
-    test_wrong_callback("wrong_callback_method");
-    test_wrong_callback("http_response_callback_traps");
-    test_wrong_callback("http_response_callback_wrong_args");
+    proxy_client.setup_proxy();
+
+    test_wrong_callback(
+        "wrong_callback_method",
+        &mut proxy_client,
+        &test_canister_actor,
+        &proxy_canister_actor,
+    );
+    test_wrong_callback(
+        "http_response_callback_traps",
+        &mut proxy_client,
+        &test_canister_actor,
+        &proxy_canister_actor,
+    );
+    test_wrong_callback(
+        "http_response_callback_wrong_args",
+        &mut proxy_client,
+        &test_canister_actor,
+        &proxy_canister_actor,
+    );
 }
 
 #[test]
@@ -299,24 +319,45 @@ fn test_http_request() {
     reset_canisters();
     let test_env = get_test_env();
     let mut proxy_client = ProxyClient::new(&test_env, get_proxy_canister_id());
-    let test_canister_actor = TestUserCanisterActor::new(&test_env, get_test_user_canister_id());
+    let test_canister_id = get_test_user_canister_id();
+    let test_canister_actor = TestUserCanisterActor::new(&test_env, test_canister_id);
+    let proxy_canister_actor = ProxyCanisterActor::new(&test_env, get_proxy_canister_id());
 
     proxy_client.setup_proxy();
 
-    let res = test_canister_actor.call_http_request_via_proxy(HttpRequestEndpointArgs {
-        request: HttpRequest {
-            url: TEST_URL.to_string(),
-            method: HttpMethod::GET,
-            headers: vec![],
-            body: None,
-        },
-        timeout_ms: None,
-        callback_method_name: None,
-    });
-
-    assert!(res.is_ok());
+    let request_id = test_canister_actor
+        .call_http_request_via_proxy(HttpRequestEndpointArgs {
+            request: HttpRequest {
+                url: TEST_URL.to_string(),
+                method: HttpMethod::GET,
+                headers: vec![],
+                body: None,
+            },
+            timeout_ms: None,
+            callback_method_name: None,
+        })
+        .unwrap();
 
     proxy_client.expect_received_http_requests_count(1);
+
+    proxy_client.send_http_over_ws_message(HttpOverWsMessage::HttpResponse(
+        request_id,
+        HttpResponse {
+            status: Nat::from(200),
+            headers: vec![],
+            body: vec![1, 2, 3],
+        },
+    ));
+
+    let req_state = proxy_canister_actor
+        .query_get_request_by_id_with_panic(get_proxy_canister_controller(), request_id)
+        .unwrap();
+    assert_eq!(req_state.canister_id, test_canister_id);
+    assert!(matches!(req_state.state, RequestState::Successful));
+
+    // check that no callback was called
+    let cb_responses = test_canister_actor.query_get_callback_responses();
+    assert_eq!(cb_responses.len(), 0);
 }
 
 #[test]
@@ -325,24 +366,86 @@ fn test_http_request_with_timeout() {
     reset_canisters();
     let test_env = get_test_env();
     let mut proxy_client = ProxyClient::new(&test_env, get_proxy_canister_id());
-    let test_canister_actor = TestUserCanisterActor::new(&test_env, get_test_user_canister_id());
+    let test_canister_id = get_test_user_canister_id();
+    let test_canister_actor = TestUserCanisterActor::new(&test_env, test_canister_id);
+    let proxy_canister_actor = ProxyCanisterActor::new(&test_env, get_proxy_canister_id());
 
     proxy_client.setup_proxy();
 
     let timeout_ms = 10_000;
 
-    let res = test_canister_actor.call_http_request_via_proxy(HttpRequestEndpointArgs {
-        request: HttpRequest {
-            url: TEST_URL.to_string(),
-            method: HttpMethod::GET,
-            headers: vec![],
-            body: None,
-        },
-        timeout_ms: Some(timeout_ms),
-        callback_method_name: None,
-    });
-    assert!(res.is_ok());
+    let request_id = test_canister_actor
+        .call_http_request_via_proxy(HttpRequestEndpointArgs {
+            request: HttpRequest {
+                url: TEST_URL.to_string(),
+                method: HttpMethod::GET,
+                headers: vec![],
+                body: None,
+            },
+            timeout_ms: Some(timeout_ms),
+            callback_method_name: None,
+        })
+        .unwrap();
     proxy_client.expect_received_http_requests_count(1);
+
+    // make the request expire
+    test_env.advance_canister_time_ms(timeout_ms);
+
+    let req_state = proxy_canister_actor
+        .query_get_request_by_id_with_panic(get_proxy_canister_controller(), request_id)
+        .unwrap();
+    assert_eq!(req_state.canister_id, test_canister_id);
+    // TODO: change this when the api will return a result in case of failure
+    assert!(matches!(req_state.state, RequestState::Executing(None)));
+}
+
+#[test]
+fn test_http_request_with_callback() {
+    setup();
+    reset_canisters();
+    let test_env = get_test_env();
+    let mut proxy_client = ProxyClient::new(&test_env, get_proxy_canister_id());
+    let test_canister_id = get_test_user_canister_id();
+    let test_canister_actor = TestUserCanisterActor::new(&test_env, test_canister_id);
+    let proxy_canister_actor = ProxyCanisterActor::new(&test_env, get_proxy_canister_id());
+
+    proxy_client.setup_proxy();
+
+    let request_id = test_canister_actor
+        .call_http_request_via_proxy(HttpRequestEndpointArgs {
+            request: HttpRequest {
+                url: TEST_URL.to_string(),
+                method: HttpMethod::GET,
+                headers: vec![],
+                body: None,
+            },
+            timeout_ms: None,
+            callback_method_name: Some("http_response_callback".to_string()),
+        })
+        .unwrap();
+
+    proxy_client.expect_received_http_requests_count(1);
+
+    let response = HttpResponse {
+        status: Nat::from(200),
+        headers: vec![],
+        body: vec![1, 2, 3],
+    };
+
+    proxy_client.send_http_over_ws_message(HttpOverWsMessage::HttpResponse(
+        request_id,
+        response.clone(),
+    ));
+
+    let req_state = proxy_canister_actor
+        .query_get_request_by_id_with_panic(get_proxy_canister_controller(), request_id)
+        .unwrap();
+    assert_eq!(req_state.canister_id, test_canister_id);
+    assert!(matches!(req_state.state, RequestState::Successful));
+
+    // check that the callback was called
+    let cb_responses = test_canister_actor.query_get_callback_responses();
+    assert_eq!(cb_responses.get(&request_id).unwrap(), &response);
 }
 
 #[test]
@@ -410,6 +513,6 @@ fn test_get_logs() {
         callback_method_name: None,
     });
 
-    let res = proxy_canister_actor.query_get_logs(*PROXY_CANISTER_CONTROLLER);
+    let res = proxy_canister_actor.query_get_logs(get_proxy_canister_controller());
     assert!(res.unwrap().len() > 0);
 }
