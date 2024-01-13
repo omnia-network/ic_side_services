@@ -1,14 +1,14 @@
 use std::{cell::RefCell, collections::HashMap};
 
 use candid::Principal;
-use http_over_ws::{HttpRequestId, HttpResponse};
+use http_over_ws::{HttpRequestId, HttpResult};
 use ic_cdk::{print, trap};
 use ic_cdk_macros::{init, query, update};
 use proxy_canister_types::{HttpRequestEndpointArgs, HttpRequestEndpointResult};
 
 thread_local! {
     /* flexible */ static PROXY_CANISTER_ID: RefCell<Principal> = RefCell::new(Principal::anonymous());
-    /* flexible */ static CALLBACK_RESPONSES: RefCell<HashMap<HttpRequestId, HttpResponse>> = RefCell::new(HashMap::new());
+    /* flexible */ static CALLBACK_RESPONSES: RefCell<HashMap<HttpRequestId, HttpResult>> = RefCell::new(HashMap::new());
 }
 
 #[init]
@@ -33,7 +33,7 @@ async fn http_request_via_proxy(args: HttpRequestEndpointArgs) -> HttpRequestEnd
 }
 
 #[update]
-fn http_response_callback(request_id: HttpRequestId, res: HttpResponse) {
+fn http_response_callback(request_id: HttpRequestId, res: HttpResult) {
     CALLBACK_RESPONSES.with(|callbacks| {
         let mut callbacks = callbacks.borrow_mut();
         callbacks.insert(request_id, res);
@@ -51,6 +51,6 @@ fn http_response_callback_wrong_args(s: String) {
 }
 
 #[query]
-fn get_callback_results() -> HashMap<HttpRequestId, HttpResponse> {
+fn get_callback_results() -> HashMap<HttpRequestId, HttpResult> {
     CALLBACK_RESPONSES.with(|responses| responses.borrow().clone())
 }

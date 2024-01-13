@@ -123,7 +123,7 @@ async fn http_request_callback(request_id: HttpRequestId, res: HttpResult) {
 
                     match cb_res {
                         Ok(_) => {
-                            state.set_request_successful(request_id);
+                            state.set_request_executed(request_id);
                         }
                         Err(e) => {
                             state.set_request_failed(request_id, format!("{:?}", e));
@@ -132,14 +132,14 @@ async fn http_request_callback(request_id: HttpRequestId, res: HttpResult) {
                 });
 
                 log!(
-                    "[http_request]: request_id:{}, canister_id:{}, completed",
+                    "[http_request]: request_id:{}, canister_id:{}, executed",
                     request_id,
                     r.canister_id,
                 );
             }
             _ => {
                 log!(
-                    "[http_request]: request_id:{}, canister_id:{}, already completed",
+                    "[http_request]: request_id:{}, canister_id:{}, already executed",
                     request_id,
                     r.canister_id,
                 );

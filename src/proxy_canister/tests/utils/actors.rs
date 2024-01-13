@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use candid::Principal;
-use http_over_ws::{HttpRequestId, HttpResponse};
+use http_over_ws::{HttpRequestId, HttpResult};
 use pocket_ic::UserError;
 use proxy_canister_types::{CanisterRequest, HttpRequestEndpointArgs, HttpRequestEndpointResult};
 use test_utils::{ic_env::TestEnv, identity::generate_random_principal};
@@ -33,7 +33,7 @@ impl<'a> TestUserCanisterActor<'a> {
         )
     }
 
-    pub fn query_get_callback_results(&self) -> HashMap<HttpRequestId, HttpResponse> {
+    pub fn query_get_callback_results(&self) -> HashMap<HttpRequestId, HttpResult> {
         self.test_env.query_canister_method_with_panic(
             self.canister_id,
             self.principal,

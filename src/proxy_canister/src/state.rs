@@ -29,13 +29,15 @@ impl ProxyState {
         self.requests.get(&request_id).cloned()
     }
 
-    pub fn set_request_successful(&mut self, request_id: HttpRequestId) {
-        self.requests.entry(request_id).and_modify(|r| r.success());
+    pub fn set_request_executed(&mut self, request_id: HttpRequestId) {
+        self.requests
+            .entry(request_id)
+            .and_modify(|r| r.set_executed());
     }
 
     pub fn set_request_failed(&mut self, request_id: HttpRequestId, reason: String) {
         self.requests
             .entry(request_id)
-            .and_modify(|r| r.fail(reason));
+            .and_modify(|r| r.set_failed(reason));
     }
 }

@@ -6,7 +6,9 @@ use std::{
 };
 
 use candid::{encode_args, Nat, Principal};
-use http_over_ws::{HttpHeader, HttpMethod, HttpOverWsMessage, HttpRequest, HttpResponse};
+use http_over_ws::{
+    HttpHeader, HttpMethod, HttpOverWsMessage, HttpRequest, HttpResponse, HttpResult,
+};
 use lazy_static::lazy_static;
 use pocket_ic::{ErrorCode, UserError};
 use proxy_canister_types::{
@@ -249,7 +251,7 @@ fn test_wrong_callback(
         .query_get_request_by_id_with_panic(get_proxy_canister_controller(), request_id1)
         .unwrap();
     assert_eq!(req_state1.canister_id, test_canister_id);
-    assert!(matches!(req_state1.state, RequestState::Failed(_)));
+    assert!(matches!(req_state1.state, RequestState::CallbackFailed(_)));
 
     // the proxy canister shouldn't trap and hence not break the ws connection
     // so we try to send another request
@@ -287,7 +289,7 @@ fn test_wrong_callback(
         .query_get_request_by_id_with_panic(get_proxy_canister_controller(), request_id2)
         .unwrap();
     assert_eq!(req_state2.canister_id, test_canister_id);
-    assert!(matches!(req_state2.state, RequestState::Failed(_)));
+    assert!(matches!(req_state2.state, RequestState::CallbackFailed(_)));
 }
 
 #[test]
@@ -361,7 +363,7 @@ fn test_http_request() {
         .query_get_request_by_id_with_panic(get_proxy_canister_controller(), request_id)
         .unwrap();
     assert_eq!(req_state.canister_id, test_canister_id);
-    assert!(matches!(req_state.state, RequestState::Successful));
+    assert!(matches!(req_state.state, RequestState::Executed));
 
     // check that no callback was called
     let cb_responses = test_canister_actor.query_get_callback_results();
@@ -403,8 +405,14 @@ fn test_http_request_with_timeout() {
         .query_get_request_by_id_with_panic(get_proxy_canister_controller(), request_id)
         .unwrap();
     assert_eq!(req_state.canister_id, test_canister_id);
-    // TODO: change this when the api will return a result in case of failure
     assert!(matches!(req_state.state, RequestState::Executing(None)));
+    // assert!(matches!(req_state.state, RequestState::Executed));
+
+    // let cb_responses = test_canister_actor.query_get_callback_results();
+    // assert_eq!(
+    //     cb_responses.get(&request_id).unwrap(),
+    //     &HttpResult::Failure(HttpFailureReason::RequestTimeout)
+    // );
 }
 
 #[test]
@@ -449,11 +457,14 @@ fn test_http_request_with_callback() {
         .query_get_request_by_id_with_panic(get_proxy_canister_controller(), request_id)
         .unwrap();
     assert_eq!(req_state.canister_id, test_canister_id);
-    assert!(matches!(req_state.state, RequestState::Successful));
+    assert!(matches!(req_state.state, RequestState::Executed));
 
     // check that the callback was called
     let cb_responses = test_canister_actor.query_get_callback_results();
-    assert_eq!(cb_responses.get(&request_id).unwrap(), &response);
+    assert_eq!(
+        cb_responses.get(&request_id).unwrap(),
+        &HttpResult::Success(response)
+    );
 }
 
 #[test]

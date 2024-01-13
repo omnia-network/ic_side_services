@@ -1,4 +1,6 @@
 use candid::{CandidType, Deserialize, Principal};
+#[allow(unused_imports)] // needed for comments
+use http_over_ws::HttpResult;
 use http_over_ws::{HttpOverWsError, HttpRequest, HttpRequestId, HttpRequestTimeoutMs};
 
 pub type CanisterId = Principal;
@@ -28,9 +30,16 @@ pub enum InvalidRequest {
 
 #[derive(CandidType, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum RequestState {
+    /// Used to indicate that the request is being executed.
     Executing(Option<CanisterCallbackMethodName>),
-    Successful,
-    Failed(String),
+    /// Used to indicate that the request has been executed.
+    ///
+    /// Note: a request that resulted in a [HttpResult::Failure] error will still be in this state,
+    /// because from the proxy canister perspective, the request has been executed.
+    Executed,
+    /// Used to indicate that the proxy canister failed to call the callback method
+    /// on the user canister.
+    CallbackFailed(String),
 }
 
 #[derive(CandidType, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -50,11 +59,11 @@ impl CanisterRequest {
         }
     }
 
-    pub fn success(&mut self) {
-        self.state = RequestState::Successful;
+    pub fn set_executed(&mut self) {
+        self.state = RequestState::Executed;
     }
 
-    pub fn fail(&mut self, reason: String) {
-        self.state = RequestState::Failed(reason);
+    pub fn set_failed(&mut self, reason: String) {
+        self.state = RequestState::CallbackFailed(reason);
     }
 }
