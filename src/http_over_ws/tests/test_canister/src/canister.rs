@@ -2,14 +2,14 @@ use std::cell::RefCell;
 
 use http_over_ws::{
     ExecuteHttpRequestResult, GetHttpResponseResult, HttpOverWsError, HttpRequest, HttpRequestId,
-    HttpRequestTimeoutMs, HttpResponse,
+    HttpRequestTimeoutMs, HttpResult,
 };
 use ic_cdk_macros::{query, update};
 use ic_websocket_cdk::{OnCloseCallbackArgs, OnMessageCallbackArgs, OnOpenCallbackArgs};
 use logger::log;
 
 thread_local! {
-    /* flexible */ static CALLBACK_RESPONSES: RefCell<Vec<HttpResponse>> = RefCell::new(Vec::new());
+    /* flexible */ static CALLBACK_RESPONSES: RefCell<Vec<HttpResult>> = RefCell::new(Vec::new());
 }
 
 pub fn on_open(args: OnOpenCallbackArgs) {
@@ -55,8 +55,8 @@ fn execute_http_request(
     )
 }
 
-async fn callback(response: HttpResponse) {
-    CALLBACK_RESPONSES.with(|responses| responses.borrow_mut().push(response));
+async fn callback(http_result: HttpResult) {
+    CALLBACK_RESPONSES.with(|http_results| http_results.borrow_mut().push(http_result));
 }
 
 #[query]
@@ -65,6 +65,6 @@ fn get_http_response(id: HttpRequestId) -> GetHttpResponseResult {
 }
 
 #[query]
-fn get_callback_responses() -> Vec<HttpResponse> {
-    CALLBACK_RESPONSES.with(|responses| responses.borrow().clone())
+fn get_callback_results() -> Vec<HttpResult> {
+    CALLBACK_RESPONSES.with(|http_results| http_results.borrow().clone())
 }

@@ -33,11 +33,11 @@ impl<'a> TestUserCanisterActor<'a> {
         )
     }
 
-    pub fn query_get_callback_responses(&self) -> HashMap<HttpRequestId, HttpResponse> {
+    pub fn query_get_callback_results(&self) -> HashMap<HttpRequestId, HttpResponse> {
         self.test_env.query_canister_method_with_panic(
             self.canister_id,
             self.principal,
-            "get_callback_responses",
+            "get_callback_results",
             (),
         )
     }

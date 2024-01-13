@@ -4,7 +4,7 @@ use crate::{
         GetHttpResponseResult, HttpCallback, HttpConnection, HttpFailureReason, HttpRequest,
         HttpRequestId, HttpRequestTimeoutMs,
     },
-    HttpOverWsError, HttpResult,
+    HttpCallbackWithResult, HttpOverWsError, HttpResult,
 };
 use candid::Principal;
 use std::{cell::RefCell, collections::HashMap, time::Duration};
@@ -101,7 +101,7 @@ impl State {
         proxy_principal: Principal,
         request_id: HttpRequestId,
         http_result: HttpResult,
-    ) -> Result<(), HttpOverWsError> {
+    ) -> Result<Option<HttpCallbackWithResult>, HttpOverWsError> {
         let proxy = self
             .connected_proxies
             .0
@@ -109,9 +109,9 @@ impl State {
             .ok_or(HttpOverWsError::ProxyNotFound)?;
         let connection = proxy.get_connection_mut(request_id)?;
 
-        connection.update_state(http_result);
+        let callback_with_result = connection.update_state(http_result);
 
-        Ok(())
+        Ok(callback_with_result)
     }
 
     pub(crate) fn get_http_connection(&self, request_id: HttpRequestId) -> Option<HttpRequest> {

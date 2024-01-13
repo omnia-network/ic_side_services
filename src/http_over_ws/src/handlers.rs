@@ -66,15 +66,17 @@ fn handle_http_result(
     request_id: HttpRequestId,
     http_result: HttpResult,
 ) {
-    let res = STATE.with(|state| {
+    if let Ok(Some((callback, http_result))) = STATE.with(|state| {
         state
             .borrow_mut()
             .update_connection_state(proxy_principal, request_id, http_result)
-    });
+    }) {
+        ic_cdk::spawn(async move { callback(request_id, http_result).await });
+    }
 
     log(&format!(
-        "http_over_ws: handled http result {:?} for request with id: {}",
-        res, request_id
+        "http_over_ws: handled http result for request with id: {}",
+        request_id
     ));
 }
 
