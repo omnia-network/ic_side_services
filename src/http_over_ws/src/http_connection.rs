@@ -50,11 +50,10 @@ pub type HttpResponse = ApiHttpResponse;
 
 pub enum HttpResult {
     Success(HttpResponse),
-    Failure(HttpFailureReason)
+    Failure(HttpFailureReason),
 }
 
-pub(crate) type HttpCallback =
-    fn(HttpRequestId, HttpResponse) -> Pin<Box<dyn Future<Output = ()>>>;
+pub(crate) type HttpCallback = fn(HttpRequestId, HttpResponse) -> Pin<Box<dyn Future<Output = ()>>>;
 
 pub type HttpRequestTimeoutMs = u64;
 
@@ -82,7 +81,11 @@ pub enum HttpOverWsError {
     /// should try to parse it as its own message type.
     NotHttpOverWsType(String),
     /// The message is an HttpOverWsMessage, however it is not what it is expected to be.
-    InvalidHttpMessage(HttpFailureReason),
+    InvalidHttpMessage,
+    ProxyNotFound,
+    ConnectionNotFound,
+    NoProxiesConnected,
+    ConnectionNotAssignedToProxy,
 }
 
 #[derive(CandidType, Clone, Debug, Deserialize, PartialEq, Eq)]
@@ -127,7 +130,7 @@ impl HttpConnection {
         }
     }
 
-    pub(crate) fn update_state(&mut self, http_result: HttpResult) -> Result<(), HttpFailureReason> {
+    pub(crate) fn update_state(&mut self, http_result: HttpResult) {
         match &mut self.state {
             HttpConnectionState::WaitingForResponse((timer_id, callback)) => {
                 match http_result {
@@ -150,50 +153,28 @@ impl HttpConnection {
                             "http_over_ws: HTTP connection with id {} received response",
                             self.id
                         ));
-                        Ok(())
                     }
                     HttpResult::Failure(reason) => {
                         log(&format!(
                             "http_over_ws: HTTP connection with id {} failed with reason {:?}",
                             self.id, reason
                         ));
-        
-                        self.state = HttpConnectionState::Failed(reason.clone());
 
-                        Err(reason)
+                        self.state = HttpConnectionState::Failed(reason.clone());
                     }
                 }
             }
-            HttpConnectionState::Failed(e) => { 
-                match http_result {
-                    HttpResult::Success(_) => {
-                        // a response after a failure is ignored
-                        Ok(())
-                    }
-                    HttpResult::Failure(_) => {
-                        log(&format!(
-                            "http_over_ws: HTTP connection with id {} failed after it had already failed",
-                            self.id
-                        ));
-                        Err(e.clone())
-                    }
-                }
+            HttpConnectionState::Failed(_) => {
+                log(&format!(
+                    "http_over_ws: HTTP connection with id {} has already failed",
+                    self.id
+                ));
             }
-            ,
             HttpConnectionState::Success(_) => {
-                match http_result {
-                    HttpResult::Success(_) => {
-                        // a second response is ignored
-                        Ok(())
-                    }
-                    HttpResult::Failure(reason) => {
-                        log(&format!(
-                            "http_over_ws: HTTP connection with id {} failed after it had already succeeded",
-                            self.id
-                        ));
-                        Err(reason)
-                    }
-                }
+                log(&format!(
+                    "http_over_ws: HTTP connection with id {} has already succeeded",
+                    self.id
+                ));
             }
         }
     }

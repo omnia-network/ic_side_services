@@ -63,12 +63,7 @@ fn test_execute_http_request_no_clients_connected() {
 
     let res = canister_actor.call_execute_http_request(request.clone(), None, false);
 
-    assert_eq!(
-        res,
-        Err(HttpOverWsError::InvalidHttpMessage(
-            HttpFailureReason::ProxyError(String::from("no proxies connected")),
-        )),
-    );
+    assert_eq!(res, Err(HttpOverWsError::NoProxiesConnected));
 }
 
 #[test]
@@ -91,12 +86,7 @@ fn test_execute_http_request_after_client_disconnected() {
 
     let res = canister_actor.call_execute_http_request(request, None, false);
 
-    assert_eq!(
-        res,
-        Err(HttpOverWsError::InvalidHttpMessage(
-            HttpFailureReason::ProxyError(String::from("no proxies connected")),
-        )),
-    );
+    assert_eq!(res, Err(HttpOverWsError::NoProxiesConnected));
 }
 
 #[test]

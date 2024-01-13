@@ -1,6 +1,13 @@
-use std::{collections::HashMap, time::Duration, cell::RefCell};
+use crate::{
+    client_proxy::ClientProxy,
+    http_connection::{
+        GetHttpResponseResult, HttpCallback, HttpConnection, HttpFailureReason, HttpRequest,
+        HttpRequestId, HttpRequestTimeoutMs,
+    },
+    HttpOverWsError, HttpResult,
+};
 use candid::Principal;
-use crate::{http_connection::{HttpFailureReason, HttpRequestId, HttpCallback, HttpRequest, HttpRequestTimeoutMs, GetHttpResponseResult, HttpConnection}, client_proxy::ClientProxy, HttpResult};
+use std::{cell::RefCell, collections::HashMap, time::Duration};
 
 // local state
 thread_local! {
@@ -24,8 +31,10 @@ impl State {
         self.connected_proxies.add_proxy(proxy_principal);
     }
 
-
-    pub(crate) fn remove_proxy(&mut self, proxy_principal: &Principal) -> Result<(), HttpFailureReason> {
+    pub(crate) fn remove_proxy(
+        &mut self,
+        proxy_principal: &Principal,
+    ) -> Result<(), HttpFailureReason> {
         self.connected_proxies.remove_proxy(proxy_principal)
     }
 
@@ -34,14 +43,12 @@ impl State {
         request: HttpRequest,
         callback: Option<HttpCallback>,
         timeout_ms: Option<HttpRequestTimeoutMs>,
-    ) -> Result<(Principal, HttpRequestId), HttpFailureReason> {
+    ) -> Result<(Principal, HttpRequestId), HttpOverWsError> {
         let request_id = self.next_request_id();
 
         let proxy_principal = self
             .get_proxy_for_connection(request_id)
-            .ok_or(HttpFailureReason::ProxyError(String::from(
-                "no proxies connected",
-            )))?
+            .ok_or(HttpOverWsError::NoProxiesConnected)?
             .clone();
 
         let timer_id = timeout_ms.and_then(|millis| {
@@ -53,21 +60,20 @@ impl State {
             ))
         });
 
-        let connection = HttpConnection::new(
-            request_id,
-            request,
-            callback,
-            timer_id,
-        );
+        let connection = HttpConnection::new(request_id, request, callback, timer_id);
 
-        self.connected_proxies.assign_connection_to_proxy(&proxy_principal, request_id, connection)?;
+        self.connected_proxies.assign_connection_to_proxy(
+            &proxy_principal,
+            request_id,
+            connection,
+        )?;
         Ok((proxy_principal, request_id))
     }
 
     fn next_request_id(&mut self) -> HttpRequestId {
         self.next_request_id += 1;
         self.next_request_id
-    } 
+    }
 
     fn get_proxy_for_connection(&self, request_id: HttpRequestId) -> Option<Principal> {
         let connected_proxies_count = self.connected_proxies.0.len();
@@ -90,25 +96,26 @@ impl State {
         )
     }
 
-    pub(crate) fn update_connection_state(&mut self, proxy_principal: Principal, request_id: HttpRequestId, http_result: HttpResult) -> Result<(), HttpFailureReason> {
-        let proxy = self.connected_proxies
+    pub(crate) fn update_connection_state(
+        &mut self,
+        proxy_principal: Principal,
+        request_id: HttpRequestId,
+        http_result: HttpResult,
+    ) -> Result<(), HttpOverWsError> {
+        let proxy = self
+            .connected_proxies
             .0
             .get_mut(&proxy_principal)
-            .ok_or(HttpFailureReason::ProxyError(String::from(
-                "proxy not connected",
-            )))?;
+            .ok_or(HttpOverWsError::ProxyNotFound)?;
         let connection = proxy.get_connection_mut(request_id)?;
-        
-        connection.update_state(http_result)
+
+        connection.update_state(http_result);
+
+        Ok(())
     }
 
     pub(crate) fn get_http_connection(&self, request_id: HttpRequestId) -> Option<HttpRequest> {
-        for (_, proxy) in
-            self
-                .connected_proxies
-                .0
-                .iter() 
-        {
+        for (_, proxy) in self.connected_proxies.0.iter() {
             for (id, connection) in proxy.get_connections() {
                 if id.to_owned() == request_id {
                     return Some(connection.get_request());
@@ -119,12 +126,7 @@ impl State {
     }
 
     pub(crate) fn get_http_response(&self, request_id: HttpRequestId) -> GetHttpResponseResult {
-        for (_, proxy) in
-            self
-                .connected_proxies
-                .0
-                .iter() 
-        {
+        for (_, proxy) in self.connected_proxies.0.iter() {
             for (id, connection) in proxy.get_connections() {
                 if id.to_owned() == request_id {
                     return connection.get_response();
@@ -135,10 +137,10 @@ impl State {
     }
 }
 
-
 fn http_connection_timeout(proxy_principal: Principal, request_id: HttpRequestId) {
     STATE.with(|state| {
-        state.borrow_mut()
+        state
+            .borrow_mut()
             .connected_proxies
             .0
             .get_mut(&proxy_principal)
@@ -168,12 +170,11 @@ impl ConnectedProxies {
         proxy_principal: &Principal,
         request_id: HttpRequestId,
         connection: HttpConnection,
-    ) -> Result<(), HttpFailureReason> {
-        let proxy = self.0
+    ) -> Result<(), HttpOverWsError> {
+        let proxy: &mut ClientProxy = self
+            .0
             .get_mut(proxy_principal)
-            .ok_or(HttpFailureReason::ProxyError(String::from(
-                "proxy not connected",
-            )))?;
+            .ok_or(HttpOverWsError::ProxyNotFound)?;
         proxy.assign_connection(request_id, connection);
         Ok(())
     }
@@ -185,13 +186,11 @@ impl ConnectedProxies {
         &mut self,
         proxy_principal: &Principal,
         request_id: HttpRequestId,
-    ) -> Result<(), HttpFailureReason> {
+    ) -> Result<(), HttpOverWsError> {
         let proxy = self
             .0
             .get_mut(proxy_principal)
-            .ok_or(HttpFailureReason::ProxyError(String::from(
-                "proxy not connected",
-            )))?;
+            .ok_or(HttpOverWsError::ProxyNotFound)?;
         proxy.remove_connection(request_id)?;
         Ok(())
     }

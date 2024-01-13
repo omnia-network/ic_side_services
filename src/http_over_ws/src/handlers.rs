@@ -26,24 +26,29 @@ pub fn try_handle_http_over_ws_message(
                 "http_over_ws: client proxy {} connected",
                 proxy_principal
             ));
-            Ok(())
         }
         HttpOverWsMessage::HttpResponse(request_id, response) => {
-            handle_http_response(proxy_principal, request_id, response)
+            handle_http_result(proxy_principal, request_id, HttpResult::Success(response));
         }
         HttpOverWsMessage::Error(request_id, err) => {
-            handle_http_error(proxy_principal, request_id, err)
+            if let Some(request_id) = request_id {
+                handle_http_result(
+                    proxy_principal,
+                    request_id,
+                    HttpResult::Failure(HttpFailureReason::ProxyError(err)),
+                );
+            } else {
+                log(&format!("http_over_ws: incoming error: {}", err));
+            }
         }
         HttpOverWsMessage::HttpRequest(_, _) => {
             let e = String::from(
                 "http_over_ws: client proxy is not allowed to send HTTP connections over WS",
             );
             log(&e);
-            Err(HttpOverWsError::InvalidHttpMessage(
-                HttpFailureReason::ProxyError(e),
-            ))
         }
-    }
+    };
+    Ok(())
 }
 
 pub fn try_disconnect_http_proxy(proxy_principal: Principal) -> Result<(), HttpFailureReason> {
@@ -56,44 +61,21 @@ pub fn try_disconnect_http_proxy(proxy_principal: Principal) -> Result<(), HttpF
     Ok(())
 }
 
-fn handle_http_response(
+fn handle_http_result(
     proxy_principal: Principal,
     request_id: HttpRequestId,
-    response: HttpResponse,
-) -> Result<(), HttpOverWsError> {
-    STATE.with(|state| {
+    http_result: HttpResult,
+) {
+    let res = STATE.with(|state| {
         state
             .borrow_mut()
-            .update_connection_state(proxy_principal, request_id, HttpResult::Success(response))
-            .map_err(|e| HttpOverWsError::InvalidHttpMessage(e))
-    })?;
+            .update_connection_state(proxy_principal, request_id, http_result)
+    });
 
     log(&format!(
-        "http_over_ws: completed HTTP connection {}",
-        request_id
+        "http_over_ws: handled http result {:?} for request with id: {}",
+        res, request_id
     ));
-
-    Ok(())
-}
-
-fn handle_http_error(
-    proxy_principal: Principal,
-    request_id: Option<HttpRequestId>,
-    err: String,
-) -> Result<(), HttpOverWsError> {
-    log(&err);
-
-    let reason = HttpFailureReason::ProxyError(err);
-
-    if let Some(request_id) = request_id {
-        STATE.with(|state| {
-            state
-                .borrow_mut()
-                .update_connection_state(proxy_principal, request_id, HttpResult::Failure(reason.clone()))
-                .map_err(|e| HttpOverWsError::InvalidHttpMessage(e))
-        })?;
-    }
-    Err(HttpOverWsError::InvalidHttpMessage(reason))
 }
 
 pub fn execute_http_request(
@@ -102,13 +84,11 @@ pub fn execute_http_request(
     timeout_ms: Option<HttpRequestTimeoutMs>,
     ws_send: fn(Principal, Vec<u8>) -> Result<(), String>,
 ) -> ExecuteHttpRequestResult {
-    let (assigned_proxy_principal, request_id) = STATE
-        .with(|state| {
-            state
-                .borrow_mut()
-                .assign_connection(req.clone(), callback, timeout_ms)
-        })
-        .map_err(|e| HttpOverWsError::InvalidHttpMessage(e))?;
+    let (assigned_proxy_principal, request_id) = STATE.with(|state| {
+        state
+            .borrow_mut()
+            .assign_connection(req.clone(), callback, timeout_ms)
+    })?;
 
     ws_send(
         assigned_proxy_principal,
