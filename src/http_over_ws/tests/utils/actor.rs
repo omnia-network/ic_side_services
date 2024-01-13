@@ -1,6 +1,6 @@
 use candid::Principal;
 use http_over_ws::{
-    ExecuteHttpRequestResult, GetHttpResponseResult, HttpRequest, HttpRequestId,
+    ExecuteHttpRequestResult, GetHttpResponseResult, HttpConnectionId, HttpRequest,
     HttpRequestTimeoutMs, HttpResponse,
 };
 use test_utils::{ic_env::TestEnv, identity::generate_random_principal};
@@ -34,12 +34,15 @@ impl<'a> CanisterActor<'a> {
         )
     }
 
-    pub fn query_get_http_response(&self, request_id: HttpRequestId) -> GetHttpResponseResult {
+    pub fn query_get_http_response(
+        &self,
+        connection_id: HttpConnectionId,
+    ) -> GetHttpResponseResult {
         self.test_env.query_canister_method_with_panic(
             self.test_canister_id,
             self.principal,
             "get_http_response",
-            (request_id,),
+            (connection_id,),
         )
     }
 

@@ -1,17 +1,8 @@
-use std::{cell::RefCell, collections::BTreeMap};
-
-mod clients;
+mod state;
 mod handlers;
-mod types;
-
-use clients::ConnectedClients;
+mod http_connection;
+mod client_proxy;
 
 // re-exports
 pub use handlers::*;
-pub use types::*;
-
-// local state
-thread_local! {
-    /* flexible */ static HTTP_REQUESTS: RefCell<BTreeMap<HttpRequestId, HttpRequestState>> = RefCell::new(BTreeMap::new());
-    /* flexible */ static CONNECTED_CLIENTS: RefCell<ConnectedClients> = RefCell::new(ConnectedClients::new());
-}
+pub use http_connection::*;

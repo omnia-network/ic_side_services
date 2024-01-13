@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
 use http_over_ws::{
-    ExecuteHttpRequestResult, GetHttpResponseResult, HttpOverWsError, HttpRequest, HttpRequestId,
+    ExecuteHttpRequestResult, GetHttpResponseResult, HttpOverWsError, HttpRequest, HttpConnectionId,
     HttpRequestTimeoutMs, HttpResponse,
 };
 use ic_cdk_macros::{query, update};
@@ -13,7 +13,7 @@ thread_local! {
 }
 
 pub fn on_open(args: OnOpenCallbackArgs) {
-    log(&format!("WS client: {:?} connected", args.client_principal));
+    log(&format!("WS proxy: {:?} connected", args.client_principal));
 }
 
 pub fn on_message(args: OnMessageCallbackArgs) {
@@ -21,7 +21,7 @@ pub fn on_message(args: OnMessageCallbackArgs) {
         http_over_ws::try_handle_http_over_ws_message(args.client_principal, args.message.clone())
     {
         log(&format!(
-            "Received WS client message: {:?} from {}",
+            "Received WS proxy message: {:?} from {}",
             args.message, args.client_principal
         ));
     }
@@ -30,7 +30,7 @@ pub fn on_message(args: OnMessageCallbackArgs) {
 pub fn on_close(args: OnCloseCallbackArgs) {
     if let Err(_) = http_over_ws::try_disconnect_http_proxy(args.client_principal) {
         log(&format!(
-            "WS client {:?} disconnected",
+            "WS proxy {:?} disconnected",
             args.client_principal
         ));
     } else {
@@ -60,7 +60,7 @@ async fn callback(response: HttpResponse) {
 }
 
 #[query]
-fn get_http_response(id: HttpRequestId) -> GetHttpResponseResult {
+fn get_http_response(id: HttpConnectionId) -> GetHttpResponseResult {
     http_over_ws::get_http_response(id)
 }
 
