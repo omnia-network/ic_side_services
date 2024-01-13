@@ -8,14 +8,15 @@ use http_over_ws::{execute_http_request, HttpRequestId, HttpResponse};
 use ic_cdk::caller;
 use ic_cdk_macros::*;
 use logger::log;
+use proxy_canister_types::{
+    CanisterRequest, HttpRequestEndpointArgs, HttpRequestEndpointResult, ProxyError, RequestState,
+};
 use requests::validate_incoming_request;
-use std::{cell::RefCell, future::Future, pin::Pin, time::Duration};
-use proxy_canister_types::{HttpRequestEndpointArgs, HttpRequestEndpointResult, ProxyError};
+use std::{cell::RefCell, future::Future, pin::Pin};
 
 use crate::{
-    requests::RequestState,
-    utils::{guard_caller_is_not_anonymous, guard_caller_is_controller},
     state::ProxyState,
+    utils::{guard_caller_is_controller, guard_caller_is_not_anonymous},
 };
 
 thread_local! {
@@ -92,7 +93,7 @@ async fn call_canister_endpoint_callback(request_id: HttpRequestId, res: HttpRes
             r.canister_id
         );
 
-        if let RequestState::Executing(method_name) = r.state {
+        if let RequestState::Executing(Some(method_name)) = r.state {
             log!(
                 "[http_request]: request_id:{}, canister_id:{}, callback method:{}, starting inter-canister call",
                 request_id,
@@ -100,41 +101,28 @@ async fn call_canister_endpoint_callback(request_id: HttpRequestId, res: HttpRes
                 method_name
             );
 
-            // execute the inter-canister call in another call,
-            // so that we don't break the HttpOverWs and hence the WS connection
-            // TODO: test if this works as expected without any drawbacks
-            ic_cdk_timers::set_timer(Duration::from_millis(0), move || {
-                ic_cdk::spawn(async move {
-                    let canister_res: Result<(), _> =
-                        ic_cdk::call(r.canister_id, method_name.as_str(), (request_id, res,)).await;
-    
-                    STATE.with(|state| {
-                        let mut state = state.borrow_mut();
-    
-                        match canister_res {
-                            Ok(_) => {
-                                state.set_request_completed(request_id);
-                                log!(
-                                    "[http_request]: request_id:{}, canister_id:{}, inter-canister call succeeded",
-                                    request_id,
-                                    r.canister_id
-                                );
-                            }
-                            Err(e) => {
-                                let err = format!("{:?}", e);
-    
-                                state.set_request_failed(request_id, err.clone());
-    
-                                log!(
-                                    "[http_request]: request_id:{}, canister_id:{}, inter-canister call failed: {}",
-                                    request_id,
-                                    r.canister_id,
-                                    err
-                                );
-                            }
-                        };
-                    });
-                })
+            let canister_res: Result<(), _> =
+                ic_cdk::call(r.canister_id, method_name.as_str(), (request_id, res)).await;
+
+            log!(
+                "[http_request]: request_id:{}, canister_id:{}, callback method:{}, completed inter-canister call result: {:?}",
+                request_id,
+                r.canister_id,
+                method_name,
+                canister_res
+            );
+
+            STATE.with(|state| {
+                let mut state = state.borrow_mut();
+
+                match canister_res {
+                    Ok(_) => {
+                        state.set_request_successful(request_id);
+                    }
+                    Err(e) => {
+                        state.set_request_failed(request_id, format!("{:?}", e));
+                    }
+                };
             });
 
             log!(
@@ -146,6 +134,14 @@ async fn call_canister_endpoint_callback(request_id: HttpRequestId, res: HttpRes
     } else {
         log!("[http_request]: request {} not found", request_id);
     }
+}
+
+#[query]
+async fn get_request_by_id(request_id: HttpRequestId) -> Option<CanisterRequest> {
+    let caller = caller();
+    guard_caller_is_controller(&caller).await;
+
+    STATE.with(|state| state.borrow().get_request_state(request_id))
 }
 
 #[query]

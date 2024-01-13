@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 
 use http_over_ws::HttpRequestId;
-use proxy_canister_types::{CanisterCallbackMethodName, CanisterId};
-
-use crate::requests::CanisterRequest;
+use proxy_canister_types::{CanisterCallbackMethodName, CanisterId, CanisterRequest};
 
 pub struct ProxyState {
     requests: HashMap<HttpRequestId, CanisterRequest>,
@@ -31,8 +29,8 @@ impl ProxyState {
         self.requests.get(&request_id).cloned()
     }
 
-    pub fn set_request_completed(&mut self, request_id: HttpRequestId) {
-        self.requests.entry(request_id).and_modify(|r| r.complete());
+    pub fn set_request_successful(&mut self, request_id: HttpRequestId) {
+        self.requests.entry(request_id).and_modify(|r| r.success());
     }
 
     pub fn set_request_failed(&mut self, request_id: HttpRequestId, reason: String) {

@@ -62,7 +62,7 @@ impl<'a> ProxyClient<'a> {
             (CanisterWsMessageArguments::new(WebsocketMessage::new(
                 self.client_key.clone(),
                 self.outgoing_messages_sequence_num,
-                0, // we don't need a timestamp here
+                0, // we can ignore the timestamp here
                 false,
                 message,
             )),),

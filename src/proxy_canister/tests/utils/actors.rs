@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use candid::Principal;
 use http_over_ws::{HttpRequestId, HttpResponse};
 use pocket_ic::UserError;
-use proxy_canister_types::{HttpRequestEndpointArgs, HttpRequestEndpointResult};
+use proxy_canister_types::{CanisterRequest, HttpRequestEndpointArgs, HttpRequestEndpointResult};
 use test_utils::{ic_env::TestEnv, identity::generate_random_principal};
 
 pub struct TestUserCanisterActor<'a> {
@@ -63,6 +63,28 @@ impl<'a> ProxyCanisterActor<'a> {
     ) -> Result<HttpRequestEndpointResult, UserError> {
         self.test_env
             .call_canister_method(self.canister_id, caller, "http_request", (args,))
+    }
+
+    pub fn query_get_request_by_id(
+        &self,
+        caller: Principal,
+        request_id: HttpRequestId,
+    ) -> Result<Option<CanisterRequest>, UserError> {
+        self.test_env.query_canister_method(
+            self.canister_id,
+            caller,
+            "get_request_by_id",
+            (request_id,),
+        )
+    }
+
+    pub fn query_get_request_by_id_with_panic(
+        &self,
+        caller: Principal,
+        request_id: HttpRequestId,
+    ) -> Option<CanisterRequest> {
+        self.query_get_request_by_id(caller, request_id)
+            .expect("query_get_request_by_id should succeed")
     }
 
     pub fn query_get_logs(&self, caller: Principal) -> Result<Vec<(String, String)>, UserError> {
