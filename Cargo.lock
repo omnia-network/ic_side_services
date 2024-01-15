@@ -329,6 +329,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
+name = "http_over_ws"
+version = "0.0.1"
+source = "git+https://github.com/omnia-network/ic-http-proxy.git#5dcddf1642c52b09ff41c504e5209bc25076b252"
+dependencies = [
+ "candid",
+ "ic-cdk",
+ "ic-cdk-timers",
+ "ic-websocket-cdk 0.3.2 (git+https://github.com/omnia-network/ic-websocket-cdk-rs/?branch=feat/public-structs)",
+ "logger",
+ "serde",
+]
+
+[[package]]
 name = "ic-cdk"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -399,6 +412,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "ic-websocket-cdk"
+version = "0.3.2"
+source = "git+https://github.com/omnia-network/ic-websocket-cdk-rs/?branch=feat/public-structs#315963afbac91bf04c80b340182116e8ada7995f"
+dependencies = [
+ "base64",
+ "candid",
+ "ic-cdk",
+ "ic-cdk-macros",
+ "ic-cdk-timers",
+ "ic-certified-map",
+ "serde",
+ "serde_bytes",
+ "serde_cbor",
+ "sha2",
+]
+
+[[package]]
 name = "ic0"
 version = "0.18.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -415,8 +445,9 @@ dependencies = [
  "hex",
  "ic-cdk",
  "ic-cdk-timers",
- "ic-websocket-cdk",
+ "ic-websocket-cdk 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static",
+ "proxy_canister_types",
  "ripemd",
  "serde",
  "serde_json",
@@ -468,6 +499,15 @@ name = "libc"
 version = "0.2.150"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "89d92a4743f9a61002fae18374ed11e7973f530cb3a3255fb354818118b2203c"
+
+[[package]]
+name = "logger"
+version = "0.0.1"
+source = "git+https://github.com/omnia-network/ic-http-proxy.git#5dcddf1642c52b09ff41c504e5209bc25076b252"
+dependencies = [
+ "ic-cdk",
+ "utc-dt",
+]
 
 [[package]]
 name = "memchr"
@@ -585,6 +625,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39278fbbf5fb4f646ce651690877f89d1c5811a3d4acb27700c1cb3cdb78fd3b"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "proxy_canister_types"
+version = "0.0.1"
+source = "git+https://github.com/omnia-network/ic-http-proxy.git#5dcddf1642c52b09ff41c504e5209bc25076b252"
+dependencies = [
+ "candid",
+ "http_over_ws",
+ "serde",
 ]
 
 [[package]]

@@ -1,16 +1,14 @@
-use std::cell::Cell;
-
 use base64::{engine::general_purpose, Engine};
 use ecdsa_api::{
     get_canister_ecdsa_public_key, set_canister_ecdsa_public_key, set_ecdsa_key_name,
     EcdsaPublicKey,
 };
+use flux::FluxNetwork;
 use flux_api::authentication::{get_zelidauth, set_zelidauth};
 use ic_cdk::{init, post_upgrade, pre_upgrade, query, update};
-
-use flux::FluxNetwork;
 use logger::log;
-use ws::init_ws;
+use proxy_canister_types::HttpRequestEndpointResult;
+use std::cell::Cell;
 
 mod ecdsa_api;
 mod flux;
@@ -18,7 +16,6 @@ mod flux_api;
 mod http_over_ws;
 mod logger;
 mod utils;
-mod ws;
 
 thread_local! {
     /// The Flux network to connect to.
@@ -27,8 +24,6 @@ thread_local! {
 
 #[init]
 fn init(network: FluxNetwork) {
-    init_ws();
-
     NETWORK.with(|n| n.set(network));
 
     let key_name = set_ecdsa_key_name(network);
@@ -91,18 +86,18 @@ async fn sign_with_ecdsa(message: String, derivation_path: Option<String>) -> St
 }
 
 #[update]
-fn flux_login() -> http_over_ws::HttpRequestId {
-    flux_api::authentication::login()
+async fn flux_login() -> HttpRequestEndpointResult {
+    flux_api::authentication::login().await
 }
 
 #[update]
-fn flux_logout() -> http_over_ws::HttpRequestId {
-    flux_api::authentication::logout()
+async fn flux_logout() -> HttpRequestEndpointResult {
+    flux_api::authentication::logout().await
 }
 
 #[update]
-fn flux_fetch_balance() -> http_over_ws::HttpRequestId {
-    flux_api::balance::fetch_balance()
+async fn flux_fetch_balance() -> HttpRequestEndpointResult {
+    flux_api::balance::fetch_balance().await
 }
 
 #[query]
@@ -148,16 +143,16 @@ fn tmp_deployment_info() -> flux_api::deployment::DeploymentInfo {
 }
 
 #[update]
-fn flux_calculate_app_price() -> http_over_ws::HttpRequestId {
-    flux_api::deployment::calculate_app_price(tmp_deployment_info())
+async fn flux_calculate_app_price() -> HttpRequestEndpointResult {
+    flux_api::deployment::calculate_app_price(tmp_deployment_info()).await
 }
 
 #[update]
-async fn flux_register_app() -> http_over_ws::HttpRequestId {
+async fn flux_register_app() -> HttpRequestEndpointResult {
     flux_api::deployment::register_app(tmp_deployment_info()).await
 }
 
 #[update]
-fn flux_get_deployment_information() -> http_over_ws::HttpRequestId {
-    flux_api::deployment::fetch_deployment_information()
+async fn flux_get_deployment_information() -> HttpRequestEndpointResult {
+    flux_api::deployment::fetch_deployment_information().await
 }

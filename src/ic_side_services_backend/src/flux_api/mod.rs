@@ -1,34 +1,34 @@
 use std::cell::RefCell;
 
+use crate::logger::log;
 use flux_types::models::*;
 use ic_cdk::trap;
 use lazy_static::lazy_static;
+use proxy_canister_types::HttpHeader;
 use url::Url;
-
-use crate::{http_over_ws::HttpHeader, logger::log};
 
 pub mod authentication;
 pub mod balance;
 pub mod deployment;
 
-const DEFAULT_HTTP_REQUEST_TIMEOUT_MS: u64 = 15_000;
+pub const DEFAULT_HTTP_REQUEST_TIMEOUT_MS: u64 = 15_000;
 
 const ZELIDAUTH_HEADER_NAME: &str = "zelidauth";
 
 lazy_static! {
-    static ref FLUX_API_BASE_URL: Url = Url::parse("https://api.runonflux.io").unwrap();
-    static ref CONTENT_TYPE_TEXT_PLAIN_HEADER: HttpHeader = HttpHeader {
+    pub static ref FLUX_API_BASE_URL: Url = Url::parse("https://api.runonflux.io").unwrap();
+    pub static ref CONTENT_TYPE_TEXT_PLAIN_HEADER: HttpHeader = HttpHeader {
         name: String::from("Content-Type"),
         value: String::from("text/plain"),
     };
 }
 
 thread_local! {
-    /* flexible */ static FLUX_STATE: RefCell<FluxState> = RefCell::default();
+    /* flexible */ pub static FLUX_STATE: RefCell<FluxState> = RefCell::default();
 }
 
 #[derive(Default)]
-struct FluxState {
+pub struct FluxState {
     pub zelid_auth_header: Option<HttpHeader>,
     pub flux_balance: Option<i32>,
 }
@@ -43,7 +43,10 @@ impl FluxState {
         log(&format!("set zelid auth header: {}", zelid_auth));
     }
 
-    fn set_auth_header_from_verifylogin_response_data(&mut self, data: VerifyLogin200ResponseData) {
+    pub fn set_auth_header_from_verifylogin_response_data(
+        &mut self,
+        data: VerifyLogin200ResponseData,
+    ) {
         log(&format!("verifylogin response: {:?}", data));
 
         let zelid = data.zelid.unwrap();
@@ -79,7 +82,7 @@ impl FluxState {
         })
     }
 
-    fn reset_auth_header(&mut self) {
+    pub fn reset_auth_header(&mut self) {
         self.zelid_auth_header = None;
     }
 
@@ -89,7 +92,7 @@ impl FluxState {
         log(&format!("set flux balance: {}", flux_balance));
     }
 
-    fn set_balance_from_getaddressbalance_response(
+    pub fn set_balance_from_getaddressbalance_response(
         &mut self,
         res: &get_address_balance_200_response::GetAddressBalance200Response,
     ) {

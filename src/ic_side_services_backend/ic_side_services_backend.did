@@ -1,91 +1,9 @@
-/* WebSocket types */
-type ClientPrincipal = principal;
-type GatewayPrincipal = principal;
-type ClientKey = record {
-    client_principal : ClientPrincipal;
-    client_nonce : nat64;
-};
-
-type WebsocketMessage = record {
-    client_key : ClientKey;
-    sequence_num : nat64;
-    timestamp : nat64;
-    is_service_message : bool;
-    content : blob;
-};
-
-type CanisterOutputMessage = record {
-    client_key : ClientKey;
-    key : text;
-    content : blob;
-};
-
-type CanisterOutputCertifiedMessages = record {
-    messages : vec CanisterOutputMessage;
-    cert : blob;
-    tree : blob;
-    is_end_of_queue : bool;
-};
-
-type CanisterWsOpenArguments = record {
-    client_nonce : nat64;
-    gateway_principal : GatewayPrincipal;
-};
-
-type CanisterWsOpenResult = variant {
-    Ok : null;
-    Err : text;
-};
-
-type CanisterWsCloseArguments = record {
-    client_key : ClientKey;
-};
-
-type CanisterWsCloseResult = variant {
-    Ok : null;
-    Err : text;
-};
-
-type CanisterWsMessageArguments = record {
-    msg : WebsocketMessage;
-};
-
-type CanisterWsMessageResult = variant {
-    Ok : null;
-    Err : text;
-};
-
-type CanisterWsGetMessagesArguments = record {
-    nonce : nat64;
-};
-
-type CanisterWsGetMessagesResult = variant {
-    Ok : CanisterOutputCertifiedMessages;
-    Err : text;
-};
-/* End WebSocket types */
-
-/* Application types */
+/* Start HTTP Proxy types */
 type HttpRequestId = nat32;
-
-type HttpMethod = variant {
-    GET;
-    POST;
-    PUT;
-    HEAD;
-    DELETE;
-};
 
 type HttpHeader = record {
     name : text;
     value : text;
-};
-
-type HttpRequest = record {
-    url : text;
-    method : HttpMethod;
-    headers : vec HttpHeader;
-    body : opt blob;
 };
 
 type HttpResponse = record {
@@ -94,74 +12,77 @@ type HttpResponse = record {
     body : blob;
 };
 
-type HttpOverWsMessage = variant {
-    HttpRequest : record { HttpRequestId; HttpRequest };
-    HttpResponse : record { HttpRequestId; HttpResponse };
-    Error : record { opt HttpRequestId; text };
+type HttpFailureReason = variant {
+    RequestTimeout;
+    ProxyError : text;
 };
 
-type PrettyHttpRequest = record {
-    url : text;
-    method : HttpMethod;
-    headers : vec HttpHeader;
-    body : opt text;
+type HttpResult = variant {
+    Success : HttpResponse;
+    Failure : HttpFailureReason;
 };
 
-type PrettyHttpResponse = record {
-    status : nat;
-    headers : vec HttpHeader;
-    body : text;
+type InvalidRequest = variant {
+    InvalidUrl : text;
+    TooManyHeaders;
+    InvalidTimeout;
 };
 
-type HttpRequestFailureReason = variant {
-    Timeout;
-    ErrorFromClient : text;
-    NotFound;
-    Unknown;
+type HttpFailureReason = variant {
+    RequestTimeout;
+    ProxyError : text;
 };
 
-type GetHttpResponseResult = variant {
-    Ok : PrettyHttpResponse;
-    Err : HttpRequestFailureReason;
+type HttpOverWsError = variant {
+    NotHttpOverWsType : text;
+    InvalidHttpMessage;
+    ProxyNotFound;
+    RequestIdNotFound;
+    NotYetReceived;
+    NoProxiesConnected;
+    ConnectionNotAssignedToProxy;
+    RequestFailed : HttpFailureReason;
 };
 
-type ConnectedClients = record {
-    idle_clients : vec principal;
-    busy_clients : vec record { principal; vec HttpRequestId };
+type ProxyCanisterError = variant {
+    InvalidRequest : InvalidRequest;
+    HttpOverWs : HttpOverWsError;
 };
+
+type HttpRequestEndpointResult = variant {
+    Ok : HttpRequestId;
+    Err : ProxyCanisterError;
+};
+
+/* End HTTP Proxy types */
 
 type FluxNetwork = variant {
     local;
     testnet;
     mainnet;
 };
-/* End Application types */
 
 service : (FluxNetwork) -> {
-    "ws_open" : (CanisterWsOpenArguments) -> (CanisterWsOpenResult);
-    "ws_close" : (CanisterWsCloseArguments) -> (CanisterWsCloseResult);
-    "ws_message" : (CanisterWsMessageArguments, opt HttpOverWsMessage) -> (CanisterWsMessageResult);
-    "ws_get_messages" : (CanisterWsGetMessagesArguments) -> (CanisterWsGetMessagesResult) query;
-
-    // "execute_http_request" : (text, HttpMethod, vec HttpHeader, opt text) -> (HttpRequestId);
-    "get_http_request" : (HttpRequestId) -> (opt PrettyHttpRequest) query;
-    "get_http_response" : (HttpRequestId) -> (GetHttpResponseResult) query;
-    "get_connected_clients" : () -> (ConnectedClients) query;
-    "disconnect_client" : (ClientPrincipal) -> ();
-    "disconnect_all_clients" : () -> ();
+    "login_phrase_callback" : (HttpRequestId, HttpResult) -> ();
+    "verify_login_callback" : (HttpRequestId, HttpResult) -> ();
+    "logout_callback" : (HttpRequestId, HttpResult) -> ();
+    "balance_callback" : (HttpRequestId, HttpResult) -> ();
+    "calculate_price_callback" : (HttpRequestId, HttpResult) -> ();
+    "app_register_callback" : (HttpRequestId, HttpResult) -> ();
+    "deployment_information_callback" : (HttpRequestId, HttpResult) -> ();
 
     "set_canister_public_key" : (opt text) -> ();
     "get_addresses" : () -> (text, text) query;
     "sign_with_ecdsa" : (text, opt text) -> (text);
 
-    "flux_login" : () -> (HttpRequestId);
-    "flux_logout" : () -> (HttpRequestId);
-    "flux_fetch_balance" : () -> (HttpRequestId);
+    "flux_login" : () -> (HttpRequestEndpointResult);
+    "flux_logout" : () -> (HttpRequestEndpointResult);
+    "flux_fetch_balance" : () -> (HttpRequestEndpointResult);
     "flux_get_balance" : () -> (opt float32) query;
     "flux_is_logged_in" : () -> (bool) query;
-    "flux_calculate_app_price" : () -> (HttpRequestId);
-    "flux_register_app" : () -> (HttpRequestId);
-    "flux_get_deployment_information" : () -> (HttpRequestId);
+    "flux_calculate_app_price" : () -> (HttpRequestEndpointResult);
+    "flux_register_app" : () -> (HttpRequestEndpointResult);
+    "flux_get_deployment_information" : () -> (HttpRequestEndpointResult);
 
     "get_logs" : () -> (vec record { text; text }) query;
 };

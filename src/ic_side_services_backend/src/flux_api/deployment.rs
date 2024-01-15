@@ -1,18 +1,17 @@
-use std::ops::Deref;
-
-use flux_types::models::*;
-use serde::{Deserialize, Serialize};
-
 use crate::{
     flux,
     flux_api::{
         authentication::get_zelidauth_or_trap, CONTENT_TYPE_TEXT_PLAIN_HEADER,
         DEFAULT_HTTP_REQUEST_TIMEOUT_MS, FLUX_API_BASE_URL,
     },
-    http_over_ws::{execute_http_request, HttpMethod, HttpRequestId, HttpResponse},
+    http_over_ws::execute_http_request,
     logger::log,
     sign_with_ecdsa, utils, NETWORK,
 };
+use flux_types::models::*;
+use proxy_canister_types::{HttpMethod, HttpRequestEndpointResult};
+use serde::{Deserialize, Serialize};
+use std::ops::Deref;
 
 pub type ComposeSpec = GetAppPriceRequestComposeInner;
 
@@ -30,7 +29,7 @@ pub struct DeploymentInfo {
 }
 
 /// See https://docs.runonflux.io/#tag/Apps/operation/getAppPrice.
-pub fn calculate_app_price(deployment_info: DeploymentInfo) -> HttpRequestId {
+pub async fn calculate_app_price(deployment_info: DeploymentInfo) -> HttpRequestEndpointResult {
     let calculateprice_url = FLUX_API_BASE_URL.join("/apps/calculateprice").unwrap();
 
     let body = GetAppPriceRequest {
@@ -50,36 +49,19 @@ pub fn calculate_app_price(deployment_info: DeploymentInfo) -> HttpRequestId {
         staticip: Some(deployment_info.static_ip),
     };
 
-    async fn calculateprice_cb(res: HttpResponse) {
-        if res.status != 200 {
-            log(&format!(
-                "calculateappprice failed with status: {}",
-                res.status
-            ));
-            return;
-        }
-
-        let GetAppPrice200Response { status, data } = serde_json::from_slice(&res.body).unwrap();
-        if let Status::Error = status.unwrap() {
-            log(&format!("calculateappprice error: {:?}", data));
-            return;
-        }
-
-        log(&format!("calculateappprice response: {:?}", data));
-    }
-
     execute_http_request(
         calculateprice_url,
         HttpMethod::POST,
         vec![CONTENT_TYPE_TEXT_PLAIN_HEADER.deref().clone()],
-        Some(serde_json::to_string(&body).unwrap()),
-        Some(|res| Box::pin(calculateprice_cb(res))),
+        Some(serde_json::to_vec(&body).unwrap()),
+        Some(String::from("calculate_price_callback")),
         Some(DEFAULT_HTTP_REQUEST_TIMEOUT_MS),
     )
+    .await
 }
 
 /// See https://docs.runonflux.io/#tag/Apps/operation/Appregister.
-pub async fn register_app(deployment_info: DeploymentInfo) -> HttpRequestId {
+pub async fn register_app(deployment_info: DeploymentInfo) -> HttpRequestEndpointResult {
     let zelidauth = get_zelidauth_or_trap();
     let appregister_url = FLUX_API_BASE_URL.join("/apps/appregister").unwrap();
 
@@ -120,40 +102,26 @@ pub async fn register_app(deployment_info: DeploymentInfo) -> HttpRequestId {
 
     body.signature = Some(serde_json::Value::String(signature));
 
-    async fn appregister_cb(res: HttpResponse) {
-        if res.status != 200 {
-            log(&format!("appregister failed with status: {}", res.status));
-            return;
-        }
-
-        let Appregister200Response { status, data } = serde_json::from_slice(&res.body).unwrap();
-        if let Status::Error = status.unwrap() {
-            log(&format!("appregister error: {:?}", data));
-            return;
-        }
-
-        log(&format!("appregister response: {:?}", data));
-    }
-
     execute_http_request(
         appregister_url,
         HttpMethod::POST,
         vec![CONTENT_TYPE_TEXT_PLAIN_HEADER.deref().clone(), zelidauth],
-        Some(serde_json::to_string(&body).unwrap()),
-        Some(|res| Box::pin(appregister_cb(res))),
+        Some(serde_json::to_vec(&body).unwrap()),
+        Some(String::from("app_register_callback")),
         // this request can take longer to complete due to the sign_with_ecdsa in the callback
         Some(2 * DEFAULT_HTTP_REQUEST_TIMEOUT_MS),
     )
+    .await
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-struct DeploymentInformationData {
-    address: String,
+pub struct DeploymentInformationData {
+    pub address: String,
 }
 
 /// For some reason, this is not generated from the OpenAPI spec.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-struct DeploymentInformationResponse {
+pub struct DeploymentInformationResponse {
     #[serde(rename = "status", skip_serializing_if = "Option::is_none")]
     pub status: Option<Status>,
     /// Status of the cleanup in progress
@@ -162,39 +130,18 @@ struct DeploymentInformationResponse {
 }
 
 /// See https://docs.runonflux.io/#tag/Apps/operation/getDeploymentInformatio.
-pub fn fetch_deployment_information() -> HttpRequestId {
+pub async fn fetch_deployment_information() -> HttpRequestEndpointResult {
     let deploymentinformation_url = FLUX_API_BASE_URL
         .join("/apps/deploymentinformation")
         .unwrap();
-
-    async fn deploymentinformation_cb(res: HttpResponse) {
-        if res.status != 200 {
-            log(&format!(
-                "deploymentinformation failed with status: {}",
-                res.status
-            ));
-            return;
-        }
-
-        let DeploymentInformationResponse { status, data } =
-            serde_json::from_slice(&res.body).unwrap();
-        if let Status::Error = status.unwrap() {
-            log(&format!("deploymentinformation error: {:?}", data));
-            return;
-        }
-
-        log(&format!(
-            "deploymentinformation address: {:?}",
-            data.unwrap().address
-        ));
-    }
 
     execute_http_request(
         deploymentinformation_url,
         HttpMethod::GET,
         vec![CONTENT_TYPE_TEXT_PLAIN_HEADER.deref().clone()],
         None,
-        Some(|res| Box::pin(deploymentinformation_cb(res))),
+        Some(String::from("deployment_information_callback")),
         Some(DEFAULT_HTTP_REQUEST_TIMEOUT_MS),
     )
+    .await
 }
